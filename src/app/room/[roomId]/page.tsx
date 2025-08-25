@@ -66,14 +66,10 @@ export default function RoomPage() {
 
     socket.on('connect', () => {
       console.log('connected to socket server', socket.id)
-       if (urlName && !participants.find(p => p.id === socket.id)) {
+       if (urlName) {
          socket.emit('join-room', { roomId, name: urlName, id: socket.id });
        }
     })
-
-    if (urlName && socket.id && !participants.find(p => p.id === socket.id)) {
-      socket.emit('join-room', { roomId, name: urlName, id: socket.id })
-    }
 
     socket.on('update-participants', (participants: Participant[]) => {
       setParticipants(participants)
@@ -99,7 +95,7 @@ export default function RoomPage() {
     return () => {
       socket.disconnect()
     }
-  }, [roomId, urlName, isLoading, participants, userName])
+  }, [roomId, urlName, userName, isLoading])
 
   const handleNameSubmit = (name: string) => {
     const newUrl = `${window.location.pathname}?name=${encodeURIComponent(name)}`;
