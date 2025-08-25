@@ -54,15 +54,20 @@ export default function RoomPage() {
   
   const [participants, setParticipants] = useState<Participant[]>([])
   const [messages, setMessages] = useState<Message[]>([])
-  const [isNameModalOpen, setIsNameModalOpen] = useState(false);
+  const [isNameModalOpen, setIsNameModalOpen] = useState(!urlName);
   const [isLoading, setIsLoading] = useState(true);
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const peerConnections = useRef<Record<string, RTCPeerConnection>>({});
 
-  const createPeerConnection = useCallback((peerId: string) => {
+  const createPeerConnection = useCallback((peerId: string): RTCPeerConnection => {
     console.log(`Creating peer connection to ${peerId}`);
+    // Close existing connection if any
+    if (peerConnections.current[peerId]) {
+      peerConnections.current[peerId].close();
+    }
+    
     const pc = new RTCPeerConnection(ICE_SERVERS);
 
     pc.onicecandidate = (event) => {
@@ -82,7 +87,7 @@ export default function RoomPage() {
     
     // Add tracks if local stream already exists
     localStream?.getTracks().forEach(track => {
-      console.log('Adding local track to PC');
+      console.log(`Adding local track to PC for ${peerId}`);
       pc.addTrack(track, localStream);
     });
 
@@ -91,140 +96,51 @@ export default function RoomPage() {
   }, [localStream]);
 
 
+  // Effect for initializing and managing socket connection
   useEffect(() => {
-    if (!urlName) {
-      setIsNameModalOpen(true);
-      setIsLoading(false);
-      return;
-    }
-    if (userName !== urlName) {
-        setUserName(urlName)
-    }
+    if (!userName) {
+        setIsLoading(!urlName);
+        if (urlName) setUserName(urlName);
+        return;
+    };
+    setIsLoading(false);
 
     const socket = io()
     socketRef.current = socket
 
     const handleConnect = () => {
       console.log('Connected to socket server with id:', socket.id)
-       if (urlName && socket.id) {
-         console.log(`Emitting join-room for ${urlName} in ${roomId}`)
-         socket.emit('join-room', { roomId, name: urlName, id: socket.id });
+       if (userName && socket.id) {
+         console.log(`Emitting join-room for ${userName} in ${roomId}`)
+         socket.emit('join-room', { roomId, name: userName, id: socket.id });
        }
     }
-
-    const handleUpdateParticipants = (updatedParticipants: Participant[]) => {
-      console.log('Received updated participants list:', updatedParticipants)
-      const newParticipants = updatedParticipants.filter(p => p.id !== socket.id);
-      
-      // Create new peer connections for new participants
-      newParticipants.forEach(p => {
-        if (!peerConnections.current[p.id]) {
-          createPeerConnection(p.id);
-        }
-      });
-      
-      // Clean up old peer connections for participants who left
-      const newParticipantIds = newParticipants.map(p => p.id);
-      Object.keys(peerConnections.current).forEach(id => {
-        if (!newParticipantIds.includes(id)) {
-          console.log(`Closing peer connection to ${id}`);
-          peerConnections.current[id].close();
-          delete peerConnections.current[id];
-           setRemoteStreams(prev => {
-             const newStreams = {...prev};
-             delete newStreams[id];
-             return newStreams;
-           });
-        }
-      });
-
-      // Now, for all new participants, create and send an offer
-      newParticipants.forEach(p => {
-          const pc = peerConnections.current[p.id];
-          if (pc && pc.signalingState === 'stable') { // Avoid race conditions
-              pc.createOffer()
-                .then(offer => pc.setLocalDescription(offer))
-                .then(() => {
-                  if (socketRef.current && pc.localDescription) {
-                    console.log(`Sending webrtc offer to ${p.id}`);
-                    socketRef.current.emit('webrtc-offer', { to: p.id, offer: pc.localDescription });
-                  }
-                }).catch(e => console.error("Error creating offer:", e));
-          }
-      });
-
-
-      setParticipants(updatedParticipants);
-      if (isLoading) setIsLoading(false);
-    }
-
-    const handleWebRtcOffer = async ({ from, offer }: { from: string, offer: RTCSessionDescriptionInit }) => {
-      console.log(`Received webrtc offer from ${from}`);
-      const pc = peerConnections.current[from] || createPeerConnection(from);
-      
-      if (pc.signalingState !== 'closed') {
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        if (socketRef.current) {
-          socketRef.current.emit('webrtc-answer', { to: from, answer });
-        }
-      } else {
-        console.warn(`Received offer from ${from}, but connection is closed.`);
-      }
-    };
-
-    const handleWebRtcAnswer = ({ from, answer }: { from: string, answer: RTCSessionDescriptionInit }) => {
-       console.log(`Received webrtc answer from ${from}`);
-      const pc = peerConnections.current[from];
-      if (pc && pc.signalingState !== 'closed') {
-        pc.setRemoteDescription(new RTCSessionDescription(answer)).catch(e => console.error("Error setting remote description:", e));
-      } else {
-        console.warn(`Received answer from ${from}, but connection is closed or does not exist.`);
-      }
-    };
-
-    const handleWebRtcIceCandidate = ({ from, candidate }: { from: string, candidate: RTCIceCandidateInit }) => {
-       console.log(`Received webrtc ice candidate from ${from}`);
-      const pc = peerConnections.current[from];
-      if (pc && pc.signalingState !== 'closed') {
-        pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.error("Error adding ICE candidate:", e));
-      } else {
-        console.warn(`Received ICE candidate from ${from}, but connection is closed or does not exist.`);
-      }
+    
+    const handleUpdateMessages = (history: Omit<Message, 'isLocal'>[]) => {
+        setMessages(history.map(msg => ({...msg, isLocal: msg.senderId === socket.id})));
     };
 
     const handleReceiveMessage = (message: Omit<Message, 'isLocal'>) => {
         setMessages(prev => [...prev, {...message, isLocal: false}])
     }
 
-    const handleUpdateMessages = (history: Omit<Message, 'isLocal'>[]) => {
-        setMessages(history.map(msg => ({...msg, isLocal: msg.senderId === socket.id})));
-    };
-    
     const handleDisconnect = () => {
         console.log('Disconnected from server');
         localStream?.getTracks().forEach(track => track.stop());
         Object.values(peerConnections.current).forEach(pc => pc.close());
         peerConnections.current = {};
+        setParticipants([]);
+        setRemoteStreams({});
     };
 
     socket.on('connect', handleConnect);
-    socket.on('update-participants', handleUpdateParticipants)
-    socket.on('webrtc-offer', handleWebRtcOffer);
-    socket.on('webrtc-answer', handleWebRtcAnswer);
-    socket.on('webrtc-ice-candidate', handleWebRtcIceCandidate);
     socket.on('receive-message', handleReceiveMessage)
     socket.on('update-messages', handleUpdateMessages);
     socket.on('disconnect', handleDisconnect);
   
     return () => {
-      console.log('Cleaning up room page effects');
+      console.log('Cleaning up socket connection effect');
       socket.off('connect', handleConnect);
-      socket.off('update-participants', handleUpdateParticipants)
-      socket.off('webrtc-offer', handleWebRtcOffer);
-      socket.off('webrtc-answer', handleWebRtcAnswer);
-      socket.off('webrtc-ice-candidate', handleWebRtcIceCandidate);
       socket.off('receive-message', handleReceiveMessage);
       socket.off('update-messages', handleUpdateMessages);
       socket.off('disconnect', handleDisconnect);
@@ -232,38 +148,118 @@ export default function RoomPage() {
       localStream?.getTracks().forEach(track => track.stop());
       Object.values(peerConnections.current).forEach(pc => pc.close());
     }
-  }, [roomId, urlName, userName, createPeerConnection, isLoading, toast]);
+  }, [roomId, userName, urlName]);
+
+   // Effect for handling WebRTC signaling
+  useEffect(() => {
+      const socket = socketRef.current;
+      if (!socket) return;
+      
+      const handleWebRtcOffer = async ({ from, offer }: { from: string, offer: RTCSessionDescriptionInit }) => {
+        console.log(`Received webrtc offer from ${from}`);
+        const pc = peerConnections.current[from] || createPeerConnection(from);
+        
+        if (pc.signalingState !== 'closed') {
+          try {
+            await pc.setRemoteDescription(new RTCSessionDescription(offer));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            socket.emit('webrtc-answer', { to: from, answer });
+          } catch(e) {
+            console.error('Error handling offer:', e)
+          }
+        } else {
+          console.warn(`Received offer from ${from}, but connection is closed.`);
+        }
+      };
+
+      const handleWebRtcAnswer = ({ from, answer }: { from: string, answer: RTCSessionDescriptionInit }) => {
+         console.log(`Received webrtc answer from ${from}`);
+        const pc = peerConnections.current[from];
+        if (pc && pc.signalingState !== 'closed') {
+          pc.setRemoteDescription(new RTCSessionDescription(answer)).catch(e => console.error("Error setting remote description:", e));
+        } else {
+          console.warn(`Received answer from ${from}, but connection is closed or does not exist.`);
+        }
+      };
+
+      const handleWebRtcIceCandidate = ({ from, candidate }: { from: string, candidate: RTCIceCandidateInit }) => {
+         console.log(`Received webrtc ice candidate from ${from}`);
+        const pc = peerConnections.current[from];
+        if (pc && pc.signalingState !== 'closed') {
+          pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.error("Error adding ICE candidate:", e));
+        } else {
+          console.warn(`Received ICE candidate from ${from}, but connection is closed or does not exist.`);
+        }
+      };
+
+      socket.on('webrtc-offer', handleWebRtcOffer);
+      socket.on('webrtc-answer', handleWebRtcAnswer);
+      socket.on('webrtc-ice-candidate', handleWebRtcIceCandidate);
+
+      return () => {
+          socket.off('webrtc-offer', handleWebRtcOffer);
+          socket.off('webrtc-answer', handleWebRtcAnswer);
+          socket.off('webrtc-ice-candidate', handleWebRtcIceCandidate);
+      }
+  }, [createPeerConnection]);
+
+  // Effect for managing participants and peer connections
+  useEffect(() => {
+      const socket = socketRef.current;
+      if (!socket) return;
+
+      const handleUpdateParticipants = (updatedParticipants: Participant[]) => {
+          console.log('Received updated participants list:', updatedParticipants);
+          const selfId = socket.id;
+          const otherParticipants = updatedParticipants.filter(p => p.id !== selfId);
+
+          // Handle new participants
+          otherParticipants.forEach(p => {
+              if (!peerConnections.current[p.id]) {
+                  console.log(`New participant ${p.name} (${p.id}) joined. Creating peer connection and offer.`);
+                  const pc = createPeerConnection(p.id);
+                  pc.createOffer()
+                      .then(offer => pc.setLocalDescription(offer))
+                      .then(() => {
+                          if (socketRef.current && pc.localDescription) {
+                              socketRef.current.emit('webrtc-offer', { to: p.id, offer: pc.localDescription });
+                          }
+                      })
+                      .catch(e => console.error("Error creating offer for new participant:", e));
+              }
+          });
+
+          // Handle departing participants
+          const participantIds = updatedParticipants.map(p => p.id);
+          Object.keys(peerConnections.current).forEach(id => {
+              if (!participantIds.includes(id)) {
+                  console.log(`Participant ${id} left. Closing peer connection.`);
+                  peerConnections.current[id].close();
+                  delete peerConnections.current[id];
+                  setRemoteStreams(prev => {
+                      const newStreams = { ...prev };
+                      delete newStreams[id];
+                      return newStreams;
+                  });
+              }
+          });
+
+          setParticipants(updatedParticipants);
+      };
+
+      socket.on('update-participants', handleUpdateParticipants);
+
+      return () => {
+          socket.off('update-participants', handleUpdateParticipants);
+      };
+  }, [createPeerConnection]);
 
 
-  const setupStream = async (video: boolean, audio: boolean) => {
+
+  const setupStream = async (constraints: MediaStreamConstraints): Promise<MediaStream | null> => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video, audio });
-      
-      stream.getAudioTracks().forEach(track => track.enabled = !isMuted);
-      stream.getVideoTracks().forEach(track => track.enabled = !isCameraOff);
-      
-      setLocalStream(stream);
-
-      // Add tracks to all existing peer connections
-      Object.values(peerConnections.current).forEach(pc => {
-        stream.getTracks().forEach(track => {
-            if (!pc.getSenders().find(s => s.track === track)) {
-                 pc.addTrack(track, stream);
-            }
-        });
-      });
-      // After adding tracks, we might need to renegotiate
-      // This is a simplified approach; a more robust one would check signalingState
-       Object.entries(peerConnections.current).forEach(([peerId, pc]) => {
-          pc.createOffer()
-            .then(offer => pc.setLocalDescription(offer))
-            .then(() => {
-                  if (socketRef.current && pc.localDescription && peerId) {
-                    socketRef.current.emit('webrtc-offer', { to: peerId, offer: pc.localDescription });
-                  }
-            });
-       });
-
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       return stream;
     } catch (error) {
       console.error("Error accessing media devices.", error);
@@ -273,40 +269,66 @@ export default function RoomPage() {
   };
   
   const toggleAudio = async () => {
-    if (!localStream) {
-      const stream = await setupStream(false, true);
-      if (stream) setIsMuted(false);
-    } else {
-      localStream.getAudioTracks().forEach(track => track.enabled = !track.enabled);
-      setIsMuted(prev => !prev);
+    let stream = localStream;
+    if (!stream) {
+      stream = await setupStream({ video: false, audio: true });
+      if (stream) setLocalStream(stream); else return;
+    }
+
+    const audioTrack = stream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      setIsMuted(!audioTrack.enabled);
     }
   };
 
   const toggleVideo = async () => {
-    if (!localStream) {
-       const stream = await setupStream(true, true);
-       if (stream) setIsCameraOff(false);
-    } else {
-      let wasVideoEnabled = false;
-      localStream.getVideoTracks().forEach(track => {
-        wasVideoEnabled = track.enabled;
-        track.enabled = !track.enabled
-      });
-      setIsCameraOff(wasVideoEnabled);
+    let stream = localStream;
+    if (!stream) {
+      stream = await setupStream({ video: true, audio: true });
+       if (stream) setLocalStream(stream); else return;
+    }
+
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = !videoTrack.enabled;
+      setIsCameraOff(!videoTrack.enabled);
     }
   };
-
+  
+  // This effect ensures that when localStream is set/changed, its tracks are added to all peer connections.
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
     }
+
+    if (localStream) {
+      const videoTrack = localStream.getVideoTracks()[0];
+      const audioTrack = localStream.getAudioTracks()[0];
+
+      Object.values(peerConnections.current).forEach(pc => {
+          const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
+          if (videoSender && videoTrack) {
+              videoSender.replaceTrack(videoTrack);
+          } else if(videoTrack) {
+              pc.addTrack(videoTrack, localStream);
+          }
+
+          const audioSender = pc.getSenders().find(s => s.track?.kind === 'audio');
+          if (audioSender && audioTrack) {
+              audioSender.replaceTrack(audioTrack);
+          } else if (audioTrack) {
+               pc.addTrack(audioTrack, localStream);
+          }
+      });
+    }
+
   }, [localStream]);
 
   const handleNameSubmit = (name: string) => {
     const newUrl = `${window.location.pathname}?name=${encodeURIComponent(name)}`;
     router.replace(newUrl, { scroll: false });
-    // No longer setting userName here, it will be picked up by useEffect
-    setIsLoading(true); // Start loading for joining room
+    setUserName(name);
     setIsNameModalOpen(false);
   }
 
@@ -324,30 +346,18 @@ export default function RoomPage() {
 
     if (!isSharingScreen) {
         try {
-            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+            const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
             
-            stream.getTracks()[0].onended = () => {
-                // Check if we are still in sharing state before toggling
-                // The user might have already clicked the button
-                if (socketRef.current && peerConnections.current) {
+            screenStream.getVideoTracks()[0].onended = () => {
+                if (socketRef.current && peerConnections.current && isSharingScreen) {
                    toggleScreenShare(); // Call again to stop sharing
                 }
             };
             
-            setIsCameraOff(true); // Disable camera when sharing screen
-            setLocalStream(stream);
             setIsSharingScreen(true);
+            setIsCameraOff(true); // Disable camera view when sharing screen
+            setLocalStream(screenStream);
             socket.emit('start-sharing', { roomId, id: socket.id });
-
-            const videoTrack = stream.getVideoTracks()[0];
-            Object.values(peerConnections.current).forEach(pc => {
-                const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-                if (sender) {
-                    sender.replaceTrack(videoTrack);
-                } else {
-                    pc.addTrack(videoTrack, stream);
-                }
-            });
 
         } catch (error) {
             console.error('Error sharing screen:', error);
@@ -358,25 +368,18 @@ export default function RoomPage() {
         
         localStream?.getTracks().forEach(track => track.stop());
 
-        // Revert to camera stream (or null if camera was off)
+        // Revert to a null stream, user must re-enable camera manually
         setIsSharingScreen(false);
-        setLocalStream(null); // Set to null, user must re-enable camera manually
-        setIsCameraOff(true); // Ensure camera is marked as off
+        setLocalStream(null);
+        setIsCameraOff(true); 
 
-        // We need to signal the track removal and potentially replace with camera
-        const newStreamForPeers = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
-        newStreamForPeers.getVideoTracks().forEach(t => t.enabled = false); // Start with camera off
-        newStreamForPeers.getAudioTracks().forEach(t => t.enabled = !isMuted);
-        setLocalStream(newStreamForPeers);
-
-        const videoTrack = newStreamForPeers.getVideoTracks()[0];
+        // Send a new offer to signal the track change (removal)
         Object.entries(peerConnections.current).forEach(async ([peerId, pc]) => {
            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
            if (sender) {
-               await sender.replaceTrack(videoTrack);
+               await sender.replaceTrack(null);
            }
-            // Renegotiate to signal track change
-             pc.createOffer()
+            pc.createOffer()
                 .then(offer => pc.setLocalDescription(offer))
                 .then(() => {
                     if (socketRef.current && pc.localDescription && peerId) {
@@ -402,7 +405,8 @@ export default function RoomPage() {
       }
   }
 
-  const mainSpeaker = participants.find(p => p.isSharingScreen) || participants.find(p => p.id === socketRef.current?.id) || participants[0];
+  const selfId = socketRef.current?.id;
+  const mainSpeaker = participants.find(p => p.isSharingScreen) || participants[0];
   const otherParticipants = participants.filter(p => p.id !== mainSpeaker?.id);
   
   if (isLoading) {
@@ -417,11 +421,14 @@ export default function RoomPage() {
   if (isNameModalOpen) {
     return <NamePromptDialog isOpen={isNameModalOpen} onNameSubmit={handleNameSubmit} t={t} />;
   }
-  
-  const mainSpeakerStream = mainSpeaker?.isSharingScreen 
-      ? (mainSpeaker.id === socketRef.current?.id ? localStream : remoteStreams[mainSpeaker.id]) 
-      : (mainSpeaker?.id === socketRef.current?.id ? localStream : remoteStreams[mainSpeaker?.id]);
 
+  const getStreamForParticipant = (participant: Participant | undefined) => {
+      if (!participant) return null;
+      if (participant.id === selfId) return localStream;
+      return remoteStreams[participant.id];
+  }
+  
+  const mainSpeakerStream = getStreamForParticipant(mainSpeaker);
 
   return (
     <TooltipProvider>
@@ -447,7 +454,8 @@ export default function RoomPage() {
                           ref={el => { if (el && el.srcObject !== mainSpeakerStream) el.srcObject = mainSpeakerStream }} 
                           className="w-full h-full object-contain" 
                           autoPlay 
-                          muted={mainSpeaker.id === socketRef.current?.id}
+                          playsInline
+                          muted={mainSpeaker.id === selfId}
                         />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center">
@@ -459,7 +467,7 @@ export default function RoomPage() {
                            </div>
                         </div>
                     )}
-                    <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg text-sm font-medium">{mainSpeaker.name} {mainSpeaker.id === socketRef.current?.id && '(You)'} {mainSpeaker.isSharingScreen && `(${t.screen_sharing})`}</div>
+                    <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg text-sm font-medium">{mainSpeaker.name} {mainSpeaker.id === selfId && '(You)'} {mainSpeaker.isSharingScreen && `(${t.screen_sharing})`}</div>
                 </div>
              ) : (
                 <div className="relative flex-1 w-full h-full rounded-lg overflow-hidden bg-card border shadow-md flex items-center justify-center">
@@ -473,7 +481,7 @@ export default function RoomPage() {
                   {/* Local Video Thumbnail */}
                   <div className="relative aspect-video h-full rounded-lg overflow-hidden bg-card border shadow-md">
                      {localStream && !isCameraOff ? (
-                       <video ref={localVideoRef} className="w-full h-full object-cover" autoPlay muted />
+                       <video ref={localVideoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
                      ) : (
                         <div className="w-full h-full flex items-center justify-center bg-muted">
                            <VideoOff className="h-8 w-8 text-muted-foreground" />
@@ -486,12 +494,12 @@ export default function RoomPage() {
                   </div>
 
                  {otherParticipants.map((p) => {
-                   const remoteStream = remoteStreams[p.id];
+                   const remoteStream = getStreamForParticipant(p);
                    const participantDetails = participants.find(ppt => ppt.id === p.id);
                    return (
                       <div key={p.id} className="relative aspect-video h-full rounded-lg overflow-hidden bg-card border shadow-md">
-                          {remoteStream && !participantDetails?.isCameraOff ? (
-                            <video ref={el => { if (el && el.srcObject !== remoteStream) el.srcObject = remoteStream }} className="w-full h-full object-cover" autoPlay />
+                          {remoteStream ? (
+                            <video ref={el => { if (el && el.srcObject !== remoteStream) el.srcObject = remoteStream }} className="w-full h-full object-cover" autoPlay playsInline />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center bg-muted">
                                <VideoOff className="h-8 w-8 text-muted-foreground" />
