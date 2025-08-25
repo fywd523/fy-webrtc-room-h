@@ -45,7 +45,6 @@ app.prepare().then(() => {
       }
       
       console.log(`user ${name} (${id}) joined room ${roomId}`)
-      console.log('current rooms', rooms)
       
       io.to(roomId).emit('update-participants', rooms[roomId].map(p => ({...p, isMuted: false, isCameraOff: false})))
       socket.emit('update-messages', roomMessages[roomId])
@@ -77,6 +76,20 @@ app.prepare().then(() => {
             io.to(roomId).emit('update-participants', rooms[roomId].map(p => ({...p, isMuted: false, isCameraOff: false})))
         }
     })
+
+    // WebRTC Signaling
+    socket.on('webrtc-offer', ({ to, offer }) => {
+      socket.to(to).emit('webrtc-offer', { from: socket.id, offer });
+    });
+
+    socket.on('webrtc-answer', ({ to, answer }) => {
+      socket.to(to).emit('webrtc-answer', { from: socket.id, answer });
+    });
+
+    socket.on('webrtc-ice-candidate', ({ to, candidate }) => {
+      socket.to(to).emit('webrtc-ice-candidate', { from: socket.id, candidate });
+    });
+
 
     socket.on('disconnecting', () => {
       console.log('user disconnecting:', socket.id)

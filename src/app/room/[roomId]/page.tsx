@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import {
@@ -29,6 +29,12 @@ import { type Message, type Participant } from '@/lib/types'
 import { ChatPanel } from '@/components/ChatPanel'
 import { NamePromptDialog } from '@/components/NamePromptDialog'
 
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ],
+};
 
 export default function RoomPage() {
   const params = useParams()
@@ -40,18 +46,47 @@ export default function RoomPage() {
   const urlName = searchParams.get('name')
 
   const socketRef = useRef<Socket | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
   const [userName, setUserName] = useState(urlName || '')
   const [isMuted, setIsMuted] = useState(false)
   const [isCameraOff, setIsCameraOff] = useState(false)
   const [isSharingScreen, setIsSharingScreen] = useState(false)
   const [isChatOpen, setIsChatOpen] = useState(false)
-  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   
   const [participants, setParticipants] = useState<Participant[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [isNameModalOpen, setIsNameModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
+  const peerConnections = useRef<Record<string, RTCPeerConnection>>({});
+
+  const createPeerConnection = useCallback((peerId: string) => {
+    const pc = new RTCPeerConnection(ICE_SERVERS);
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate && socketRef.current) {
+        socketRef.current.emit('webrtc-ice-candidate', {
+          to: peerId,
+          candidate: event.candidate,
+        });
+      }
+    };
+
+    pc.ontrack = (event) => {
+      console.log(`Received remote track from ${peerId}`);
+      setRemoteStreams(prev => ({ ...prev, [peerId]: event.streams[0] }));
+    };
+    
+    localStream?.getTracks().forEach(track => {
+      pc.addTrack(track, localStream);
+    });
+
+    peerConnections.current[peerId] = pc;
+    return pc;
+  }, [localStream]);
+
 
   useEffect(() => {
     if (!urlName) {
@@ -74,20 +109,56 @@ export default function RoomPage() {
     })
 
     socket.on('update-participants', (updatedParticipants: Participant[]) => {
-      setParticipants(updatedParticipants)
-      const me = updatedParticipants.find(p => p.id === socketRef.current?.id)
-      
-      if (me) {
-        const currentlySharing = me.isSharingScreen || false;
-        if (isSharingScreen !== currentlySharing) {
-          setIsSharingScreen(currentlySharing);
+      const newParticipants = updatedParticipants.filter(p => p.id !== socket.id);
+
+      newParticipants.forEach(p => {
+        if (!peerConnections.current[p.id]) {
+          const pc = createPeerConnection(p.id);
+          pc.createOffer()
+            .then(offer => pc.setLocalDescription(offer))
+            .then(() => {
+              socket.emit('webrtc-offer', { to: p.id, offer: pc.localDescription });
+            });
         }
-      }
+      });
       
-      if (isLoading) {
-        setIsLoading(false);
-      }
+      const oldParticipantIds = Object.keys(peerConnections.current);
+      const newParticipantIds = newParticipants.map(p => p.id);
+      oldParticipantIds.forEach(id => {
+        if (!newParticipantIds.includes(id)) {
+          peerConnections.current[id].close();
+          delete peerConnections.current[id];
+        }
+      })
+
+      setParticipants(updatedParticipants);
+      if (isLoading) setIsLoading(false);
     })
+
+    socket.on('webrtc-offer', async ({ from, offer }) => {
+      console.log(`Received webrtc offer from ${from}`);
+      const pc = createPeerConnection(from);
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit('webrtc-answer', { to: from, answer });
+    });
+
+    socket.on('webrtc-answer', ({ from, answer }) => {
+       console.log(`Received webrtc answer from ${from}`);
+      const pc = peerConnections.current[from];
+      if (pc) {
+        pc.setRemoteDescription(new RTCSessionDescription(answer));
+      }
+    });
+
+    socket.on('webrtc-ice-candidate', ({ from, candidate }) => {
+       console.log(`Received webrtc ice candidate from ${from}`);
+      const pc = peerConnections.current[from];
+      if (pc) {
+        pc.addIceCandidate(new RTCIceCandidate(candidate));
+      }
+    });
 
     socket.on('receive-message', (message: Omit<Message, 'isLocal'>) => {
         setMessages(prev => [...prev, {...message, isLocal: false}])
@@ -99,20 +170,17 @@ export default function RoomPage() {
     
     socket.on('disconnect', () => {
         console.log('Disconnected from server');
+        Object.values(peerConnections.current).forEach(pc => pc.close());
+        peerConnections.current = {};
     });
 
     return () => {
       socket.disconnect()
+      localStream?.getTracks().forEach(track => track.stop());
+      Object.values(peerConnections.current).forEach(pc => pc.close());
     }
-  }, [roomId, urlName])
+  }, [roomId, urlName, createPeerConnection, isLoading, localStream]);
   
-
-  useEffect(() => {
-    if (isSharingScreen && screenStream && videoRef.current) {
-        videoRef.current.srcObject = screenStream;
-    }
-  }, [isSharingScreen, screenStream]);
-
 
   const handleNameSubmit = (name: string) => {
     const newUrl = `${window.location.pathname}?name=${encodeURIComponent(name)}`;
@@ -137,13 +205,10 @@ export default function RoomPage() {
     if (!isSharingScreen) {
         try {
             const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-            setScreenStream(stream);
+            setLocalStream(stream);
             stream.getTracks()[0].onended = () => {
-                // This event is fired when the user stops sharing from the browser's native UI
                 if (socketRef.current && isSharingScreen) {
-                   socketRef.current.emit('stop-sharing', { roomId, id: socketRef.current.id });
-                   setIsSharingScreen(false);
-                   setScreenStream(null);
+                   toggleScreenShare(); // Call again to stop sharing
                 }
             };
             socket.emit('start-sharing', { roomId, id: socket.id });
@@ -154,10 +219,8 @@ export default function RoomPage() {
         }
     } else {
         socket.emit('stop-sharing', { roomId, id: socket.id });
-        if (screenStream) {
-            screenStream.getTracks().forEach(track => track.stop());
-            setScreenStream(null);
-        }
+        localStream?.getTracks().forEach(track => track.stop());
+        setLocalStream(null);
         setIsSharingScreen(false);
     }
   }
@@ -179,7 +242,6 @@ export default function RoomPage() {
 
   const mainSpeaker = participants.find(p => p.isSharingScreen) || participants.find(p => p.id === socketRef.current?.id) || participants[0];
   const otherParticipants = participants.filter(p => p.id !== mainSpeaker?.id);
-  const isViewingScreenShare = mainSpeaker && mainSpeaker.isSharingScreen && mainSpeaker.id !== socketRef.current?.id;
   
   if (isLoading) {
     return (
@@ -193,6 +255,8 @@ export default function RoomPage() {
   if (isNameModalOpen) {
     return <NamePromptDialog isOpen={isNameModalOpen} onNameSubmit={handleNameSubmit} t={t} />;
   }
+  
+  const mainSpeakerStream = mainSpeaker?.isSharingScreen ? (mainSpeaker.id === socketRef.current?.id ? localStream : remoteStreams[mainSpeaker.id]) : null;
 
   return (
     <TooltipProvider>
@@ -213,10 +277,13 @@ export default function RoomPage() {
           <div className="flex flex-1 flex-col p-4 gap-4">
              {mainSpeaker && (
                 <div className="relative flex-1 w-full h-full rounded-lg overflow-hidden bg-card border shadow-md">
-                    {isSharingScreen && mainSpeaker.id === socketRef.current?.id ? (
-                        <video ref={videoRef} className="w-full h-full object-contain" autoPlay muted />
-                    ) : isViewingScreenShare ? (
-                        <Image src={`https://placehold.co/1280x720.png`} alt={`${mainSpeaker.name}'s screen share`} layout="fill" objectFit="contain" data-ai-hint="screen sharing" />
+                    {mainSpeakerStream ? (
+                         <video 
+                          ref={el => { if (el) el.srcObject = mainSpeakerStream }} 
+                          className="w-full h-full object-contain" 
+                          autoPlay 
+                          muted={mainSpeaker.id === socketRef.current?.id}
+                        />
                     ) : (
                         <Image src={`https://placehold.co/1280x720.png`} alt={mainSpeaker.name} layout="fill" objectFit="cover" data-ai-hint="person talking" />
                     )}
@@ -224,20 +291,27 @@ export default function RoomPage() {
                 </div>
              )}
              <div className="flex gap-4 h-32 md:h-40 shrink-0">
-                 {otherParticipants.map((p) => (
-                    <div key={p.id} className="relative aspect-video h-full rounded-lg overflow-hidden bg-card border shadow-md">
-                        <Image src={`https://placehold.co/320x180.png`} alt={p.name} layout="fill" objectFit="cover" data-ai-hint="person portrait" />
-                         <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium">{p.name} {p.id === socketRef.current?.id && '(You)'}</div>
-                         <div className="absolute top-2 right-2 bg-black/50 p-1 rounded-full">
-                            {p.isMuted ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-white" />}
-                         </div>
-                         {p.isCameraOff && (
-                             <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-                                 <VideoOff className="h-8 w-8 text-white" />
-                             </div>
-                         )}
-                    </div>
-                 ))}
+                 {otherParticipants.map((p) => {
+                   const remoteStream = remoteStreams[p.id];
+                   return (
+                      <div key={p.id} className="relative aspect-video h-full rounded-lg overflow-hidden bg-card border shadow-md">
+                          {remoteStream ? (
+                            <video ref={el => { if (el) el.srcObject = remoteStream }} className="w-full h-full object-cover" autoPlay />
+                          ) : (
+                            <Image src={`https://placehold.co/320x180.png`} alt={p.name} layout="fill" objectFit="cover" data-ai-hint="person portrait" />
+                          )}
+                           <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium">{p.name} {p.id === socketRef.current?.id && '(You)'}</div>
+                           <div className="absolute top-2 right-2 bg-black/50 p-1 rounded-full">
+                              {p.isMuted ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-white" />}
+                           </div>
+                           {p.isCameraOff && (
+                               <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                                   <VideoOff className="h-8 w-8 text-white" />
+                               </div>
+                           )}
+                      </div>
+                   )
+                 })}
              </div>
           </div>
           
@@ -283,7 +357,7 @@ export default function RoomPage() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant={isSharingScreen ? "default" : "secondary"} size="lg" className="rounded-full w-14 h-14" onClick={toggleScreenShare} disabled={isViewingScreenShare}>
+                <Button variant={isSharingScreen ? "default" : "secondary"} size="lg" className="rounded-full w-14 h-14" onClick={toggleScreenShare}>
                   {isSharingScreen ? <ScreenShareOff className="h-6 w-6" /> : <ScreenShare className="h-6 w-6" />}
                 </Button>
               </TooltipTrigger>
@@ -323,5 +397,3 @@ export default function RoomPage() {
     </TooltipProvider>
   )
 }
-
-    
