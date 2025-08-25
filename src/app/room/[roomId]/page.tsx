@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import {
@@ -39,7 +39,7 @@ export default function RoomPage() {
   const roomId = params.roomId as string
   const urlName = searchParams.get('name')
 
-  const [socket, setSocket] = useState<Socket | null>(null)
+  const socketRef = useRef<Socket | null>(null);
   const [userName, setUserName] = useState(urlName || '')
   const [isMuted, setIsMuted] = useState(false)
   const [isCameraOff, setIsCameraOff] = useState(false)
@@ -55,52 +55,52 @@ export default function RoomPage() {
     if (!urlName) {
       setIsNameModalOpen(true);
       setIsLoading(false);
+      return;
+    }
+    if (!userName) {
+        setUserName(urlName)
     }
 
-    const newSocket = io()
-    setSocket(newSocket)
+    const socket = io()
+    socketRef.current = socket
 
-    if (urlName) {
-      setUserName(urlName);
-      newSocket.emit('join-room', { roomId, name: urlName, id: newSocket.id })
-    }
-
-    newSocket.on('connect', () => {
-      console.log('connected to socket server', newSocket.id)
-      if (userName) {
-        newSocket.emit('join-room', { roomId, name: userName, id: newSocket.id });
-      }
+    socket.on('connect', () => {
+      console.log('connected to socket server', socket.id)
+       if (userName) {
+         socket.emit('join-room', { roomId, name: userName, id: socket.id });
+       }
     })
 
-    newSocket.on('update-participants', (participants: Participant[]) => {
+    if (userName) {
+      socket.emit('join-room', { roomId, name: userName, id: socket.id })
+    }
+
+    socket.on('update-participants', (participants: Participant[]) => {
       setParticipants(participants)
       if (isLoading) {
         setIsLoading(false);
       }
     })
 
-    newSocket.on('receive-message', (message: Omit<Message, 'isLocal'>) => {
+    socket.on('receive-message', (message: Omit<Message, 'isLocal'>) => {
         setMessages(prev => [...prev, {...message, isLocal: false}])
     })
 
-    newSocket.on('update-messages', (history: Omit<Message, 'isLocal'>[]) => {
-        setMessages(history.map(msg => ({...msg, isLocal: msg.senderId === newSocket.id})));
+    socket.on('update-messages', (history: Omit<Message, 'isLocal'>[]) => {
+        setMessages(history.map(msg => ({...msg, isLocal: msg.senderId === socket.id})));
     });
 
     return () => {
-      newSocket.disconnect()
+      socket.disconnect()
     }
-  }, [roomId, urlName, isLoading, userName])
+  }, [roomId, urlName, userName, isLoading])
 
   const handleNameSubmit = (name: string) => {
-    if (socket) {
-      const newUrl = `${window.location.pathname}?name=${encodeURIComponent(name)}`;
-      router.replace(newUrl, { scroll: false });
-      setUserName(name)
-      setIsLoading(true); // Start loading for joining room
-      socket.emit('join-room', { roomId, name, id: socket.id })
-      setIsNameModalOpen(false);
-    }
+    const newUrl = `${window.location.pathname}?name=${encodeURIComponent(name)}`;
+    router.replace(newUrl, { scroll: false });
+    setUserName(name)
+    setIsLoading(true); // Start loading for joining room
+    setIsNameModalOpen(false);
   }
 
   const copyRoomId = () => {
@@ -112,6 +112,7 @@ export default function RoomPage() {
   }
 
   const handleSendMessage = (text: string) => {
+      const socket = socketRef.current;
       if (text && socket) {
           const message: Omit<Message, 'isLocal'> = {
               id: Date.now().toString(),
@@ -125,7 +126,7 @@ export default function RoomPage() {
       }
   }
 
-  const mainSpeaker = participants.find(p => p.isSharingScreen) || participants.find(p => p.id === socket?.id) || participants[0];
+  const mainSpeaker = participants.find(p => p.isSharingScreen) || participants.find(p => p.id === socketRef.current?.id) || participants[0];
   const otherParticipants = participants.filter(p => p.id !== mainSpeaker?.id);
   
   if (isLoading) {
@@ -161,14 +162,14 @@ export default function RoomPage() {
              {mainSpeaker && (
                 <div className="relative flex-1 w-full h-full rounded-lg overflow-hidden bg-card border shadow-md">
                     <Image src={`https://placehold.co/1280x720.png`} alt={mainSpeaker.name} layout="fill" objectFit="cover" data-ai-hint={mainSpeaker.isSharingScreen ? "code screen" : "person talking"} />
-                    <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg text-sm font-medium">{mainSpeaker.name} {mainSpeaker.id === socket?.id && '(You)'} {mainSpeaker.isSharingScreen && `(${t.screen_sharing})`}</div>
+                    <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg text-sm font-medium">{mainSpeaker.name} {mainSpeaker.id === socketRef.current?.id && '(You)'} {mainSpeaker.isSharingScreen && `(${t.screen_sharing})`}</div>
                 </div>
              )}
              <div className="flex gap-4 h-32 md:h-40 shrink-0">
                  {otherParticipants.map((p) => (
                     <div key={p.id} className="relative aspect-video h-full rounded-lg overflow-hidden bg-card border shadow-md">
                         <Image src={`https://placehold.co/320x180.png`} alt={p.name} layout="fill" objectFit="cover" data-ai-hint="person portrait" />
-                         <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium">{p.name} {p.id === socket?.id && '(You)'}</div>
+                         <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium">{p.name} {p.id === socketRef.current?.id && '(You)'}</div>
                          <div className="absolute top-2 right-2 bg-black/50 p-1 rounded-full">
                             {p.isMuted ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-white" />}
                          </div>
@@ -264,5 +265,3 @@ export default function RoomPage() {
     </TooltipProvider>
   )
 }
-
-    

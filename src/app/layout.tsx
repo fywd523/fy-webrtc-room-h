@@ -7,7 +7,7 @@ import {cn} from '@/lib/utils';
 export const metadata: Metadata = {
   title: 'ConnectWave',
   description: 'A modern WebRTC online meeting room application.',
-  manifest: '/manifest.ts'
+  manifest: '/manifest.webmanifest'
 };
 
 export default function RootLayout({
