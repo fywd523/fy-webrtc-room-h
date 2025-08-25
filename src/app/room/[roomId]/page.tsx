@@ -23,10 +23,10 @@ import { useTranslation } from '@/hooks/use-translation'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import io, { Socket } from 'socket.io-client'
 import { type Message, type Participant } from '@/lib/types'
 import { ChatPanel } from '@/components/ChatPanel'
+import { NamePromptDialog } from '@/components/NamePromptDialog'
 
 
 export default function RoomPage() {
@@ -45,6 +45,7 @@ export default function RoomPage() {
   
   const [participants, setParticipants] = useState<Participant[]>([])
   const [messages, setMessages] = useState<Message[]>([])
+  const [isNameModalOpen, setIsNameModalOpen] = useState(true);
 
   useEffect(() => {
     const newSocket = io()
@@ -52,9 +53,6 @@ export default function RoomPage() {
 
     newSocket.on('connect', () => {
       console.log('connected to socket server', newSocket.id)
-      const name = prompt("Please enter your name") || "Anonymous"
-      setUserName(name)
-      newSocket.emit('join-room', { roomId, name, id: newSocket.id })
     })
 
     newSocket.on('update-participants', (participants: Participant[]) => {
@@ -73,6 +71,14 @@ export default function RoomPage() {
       newSocket.disconnect()
     }
   }, [roomId])
+
+  const handleNameSubmit = (name: string) => {
+    if (socket) {
+      setUserName(name)
+      socket.emit('join-room', { roomId, name, id: socket.id })
+      setIsNameModalOpen(false);
+    }
+  }
 
   const copyRoomId = () => {
     navigator.clipboard.writeText(roomId)
@@ -98,6 +104,10 @@ export default function RoomPage() {
 
   const mainSpeaker = participants.find(p => p.isSharingScreen) || participants.find(p => p.id === socket?.id) || participants[0];
   const otherParticipants = participants.filter(p => p.id !== mainSpeaker?.id);
+  
+  if (isNameModalOpen) {
+    return <NamePromptDialog isOpen={isNameModalOpen} onNameSubmit={handleNameSubmit} t={t} />;
+  }
 
   return (
     <TooltipProvider>
