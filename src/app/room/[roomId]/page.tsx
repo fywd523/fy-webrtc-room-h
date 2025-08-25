@@ -169,7 +169,7 @@ export default function RoomPage() {
       };
 
       const handleWebRtcAnswer = ({ from, answer }: { from: string, answer: RTCSessionDescriptionInit }) => {
-         console.log(`Received webrtc answer from ${from}`);
+        console.log(`Received webrtc answer from ${from}`);
         const pc = peerConnections.current[from];
         if (pc && pc.signalingState !== 'closed') {
           pc.setRemoteDescription(new RTCSessionDescription(answer)).catch(e => console.error("Error setting remote description:", e));
@@ -208,6 +208,9 @@ export default function RoomPage() {
           console.log('Received updated participants list:', updatedParticipants);
           const selfId = socket.id;
           const otherParticipants = updatedParticipants.filter(p => p.id !== selfId);
+
+          console.log('Self ID:', selfId);
+          console.log('Other Participants:', otherParticipants);
 
           // Handle new participants
           otherParticipants.forEach(p => {

@@ -1,5 +1,4 @@
 import { createServer } from 'http'
-import { parse } from 'url'
 import next from 'next'
 import { Server } from 'socket.io'
 
@@ -79,11 +78,16 @@ app.prepare().then(() => {
 
     // WebRTC Signaling
     socket.on('webrtc-offer', ({ to, offer }) => {
-      socket.to(to).emit('webrtc-offer', { from: socket.id, offer });
+      if (socket.id !== to) {
+        console.log('sending webrtc-offer to...', to)
+        socket.to(to).emit('webrtc-offer', { from: socket.id, offer });
+      }
     });
 
     socket.on('webrtc-answer', ({ to, answer }) => {
-      socket.to(to).emit('webrtc-answer', { from: socket.id, answer });
+      if (socket.id !== to) {
+        socket.to(to).emit('webrtc-answer', { from: socket.id, answer });
+      }
     });
 
     socket.on('webrtc-ice-candidate', ({ to, candidate }) => {
