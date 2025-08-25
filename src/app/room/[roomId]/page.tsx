@@ -46,10 +46,13 @@ export default function RoomPage() {
   
   const [participants, setParticipants] = useState<Participant[]>([])
   const [messages, setMessages] = useState<Message[]>([])
-  const [isNameModalOpen, setIsNameModalOpen] = useState(true);
+  const [isNameModalOpen, setIsNameModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Show name prompt only after initial page load is complete
+    setIsNameModalOpen(true);
+
     const newSocket = io()
     setSocket(newSocket)
 
@@ -80,9 +83,9 @@ export default function RoomPage() {
   const handleNameSubmit = (name: string) => {
     if (socket) {
       setUserName(name)
+      setIsLoading(true); // Start loading for joining room
       socket.emit('join-room', { roomId, name, id: socket.id })
       setIsNameModalOpen(false);
-      // We don't set isLoading to false here, we wait for the first 'update-participants' event
     }
   }
 
@@ -111,17 +114,17 @@ export default function RoomPage() {
   const mainSpeaker = participants.find(p => p.isSharingScreen) || participants.find(p => p.id === socket?.id) || participants[0];
   const otherParticipants = participants.filter(p => p.id !== mainSpeaker?.id);
   
-  if (isNameModalOpen) {
-    return <NamePromptDialog isOpen={isNameModalOpen} onNameSubmit={handleNameSubmit} t={t} />;
-  }
-
-  if (isLoading) {
+  if (!isNameModalOpen || isLoading) {
     return (
       <div className="flex flex-col h-screen w-full items-center justify-center bg-background text-foreground gap-4">
         <Loader className="h-12 w-12 animate-spin text-primary" />
-        <p className="text-muted-foreground">正在加入会议室，请稍候...</p>
+        <p className="text-muted-foreground">{t.joining_meeting_loading}</p>
       </div>
     );
+  }
+
+  if (isNameModalOpen) {
+    return <NamePromptDialog isOpen={isNameModalOpen} onNameSubmit={handleNameSubmit} t={t} />;
   }
 
   return (
@@ -247,5 +250,3 @@ export default function RoomPage() {
     </TooltipProvider>
   )
 }
-
-    
