@@ -40,11 +40,13 @@ export default function RoomPage() {
   const urlName = searchParams.get('name')
 
   const socketRef = useRef<Socket | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [userName, setUserName] = useState(urlName || '')
   const [isMuted, setIsMuted] = useState(false)
   const [isCameraOff, setIsCameraOff] = useState(false)
   const [isSharingScreen, setIsSharingScreen] = useState(false)
   const [isChatOpen, setIsChatOpen] = useState(false)
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   
   const [participants, setParticipants] = useState<Participant[]>([])
   const [messages, setMessages] = useState<Message[]>([])
@@ -71,12 +73,14 @@ export default function RoomPage() {
        }
     })
 
-    socket.on('update-participants', (participants: Participant[]) => {
-      setParticipants(participants)
-      // Check if current user is sharing screen based on server state
-      const me = participants.find(p => p.id === socketRef.current?.id)
+    socket.on('update-participants', (updatedParticipants: Participant[]) => {
+      setParticipants(updatedParticipants)
+      const me = updatedParticipants.find(p => p.id === socketRef.current?.id)
       if (me) {
-        setIsSharingScreen(me.isSharingScreen || false)
+        const currentlySharing = me.isSharingScreen || false;
+        if (isSharingScreen !== currentlySharing) {
+          setIsSharingScreen(currentlySharing);
+        }
       }
       
       if (isLoading) {
@@ -95,7 +99,14 @@ export default function RoomPage() {
     return () => {
       socket.disconnect()
     }
-  }, [roomId, urlName, userName, isLoading])
+  }, [roomId, urlName, userName, isLoading, isSharingScreen])
+
+  useEffect(() => {
+    if (videoRef.current && screenStream) {
+        videoRef.current.srcObject = screenStream;
+    }
+  }, [screenStream]);
+
 
   const handleNameSubmit = (name: string) => {
     const newUrl = `${window.location.pathname}?name=${encodeURIComponent(name)}`;
@@ -113,18 +124,30 @@ export default function RoomPage() {
     })
   }
   
-  const toggleScreenShare = () => {
+  const toggleScreenShare = async () => {
     const socket = socketRef.current;
     if (!socket) return;
 
     if (!isSharingScreen) {
-        // For simplicity, we are not handling the browser's screen sharing stream here.
-        // In a real app, you would use `navigator.mediaDevices.getDisplayMedia()`
-        // and manage the stream.
-        socket.emit('start-sharing', { roomId, id: socket.id });
-        setIsSharingScreen(true);
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+            setScreenStream(stream);
+            stream.getTracks()[0].onended = () => {
+                // Handle user stopping share from browser UI
+                toggleScreenShare(); 
+            };
+            socket.emit('start-sharing', { roomId, id: socket.id });
+            setIsSharingScreen(true);
+        } catch (error) {
+            console.error('Error sharing screen:', error);
+            toast({ variant: 'destructive', title: 'Could not share screen' });
+        }
     } else {
         socket.emit('stop-sharing', { roomId, id: socket.id });
+        if (screenStream) {
+            screenStream.getTracks().forEach(track => track.stop());
+            setScreenStream(null);
+        }
         setIsSharingScreen(false);
     }
   }
@@ -146,6 +169,7 @@ export default function RoomPage() {
 
   const mainSpeaker = participants.find(p => p.isSharingScreen) || participants.find(p => p.id === socketRef.current?.id) || participants[0];
   const otherParticipants = participants.filter(p => p.id !== mainSpeaker?.id);
+  const isViewingScreenShare = mainSpeaker && mainSpeaker.isSharingScreen && mainSpeaker.id !== socketRef.current?.id;
   
   if (isLoading) {
     return (
@@ -179,7 +203,11 @@ export default function RoomPage() {
           <div className="flex flex-1 flex-col p-4 gap-4">
              {mainSpeaker && (
                 <div className="relative flex-1 w-full h-full rounded-lg overflow-hidden bg-card border shadow-md">
-                    <Image src={`https://placehold.co/1280x720.png`} alt={mainSpeaker.name} layout="fill" objectFit="cover" data-ai-hint={mainSpeaker.isSharingScreen ? "code screen" : "person talking"} />
+                    {isSharingScreen || isViewingScreenShare ? (
+                        <video ref={videoRef} className="w-full h-full object-contain" autoPlay muted={mainSpeaker.id === socketRef.current?.id} />
+                    ) : (
+                        <Image src={`https://placehold.co/1280x720.png`} alt={mainSpeaker.name} layout="fill" objectFit="cover" data-ai-hint="person talking" />
+                    )}
                     <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg text-sm font-medium">{mainSpeaker.name} {mainSpeaker.id === socketRef.current?.id && '(You)'} {mainSpeaker.isSharingScreen && `(${t.screen_sharing})`}</div>
                 </div>
              )}
@@ -243,8 +271,8 @@ export default function RoomPage() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="secondary" size="lg" className="rounded-full w-14 h-14" onClick={toggleScreenShare}>
-                  {isSharingScreen ? <ScreenShareOff className="h-6 w-6 text-primary" /> : <ScreenShare className="h-6 w-6" />}
+                <Button variant={isSharingScreen ? "default" : "secondary"} size="lg" className="rounded-full w-14 h-14" onClick={toggleScreenShare}>
+                  {isSharingScreen ? <ScreenShareOff className="h-6 w-6 text-accent-foreground" /> : <ScreenShare className="h-6 w-6" />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{isSharingScreen ? t.stop_sharing : t.share_screen}</TooltipContent>
