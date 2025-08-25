@@ -12,6 +12,7 @@ const handler = app.getRequestHandler()
 interface Participant {
   id: string;
   name: string;
+  isSharingScreen?: boolean;
 }
 
 interface Message {
@@ -40,7 +41,7 @@ app.prepare().then(() => {
       }
       // Avoid duplicate participants
       if (!rooms[roomId].find(p => p.id === id)) {
-        rooms[roomId].push({ id, name })
+        rooms[roomId].push({ id, name, isSharingScreen: false })
       }
       
       console.log(`user ${name} (${id}) joined room ${roomId}`)
@@ -55,6 +56,26 @@ app.prepare().then(() => {
         roomMessages[roomId].push(message)
       }
       socket.to(roomId).emit('receive-message', message)
+    })
+    
+    socket.on('start-sharing', ({ roomId, id }) => {
+        if (rooms[roomId]) {
+            const participant = rooms[roomId].find(p => p.id === id)
+            if (participant) {
+                participant.isSharingScreen = true;
+            }
+            io.to(roomId).emit('update-participants', rooms[roomId].map(p => ({...p, isMuted: false, isCameraOff: false})))
+        }
+    })
+
+    socket.on('stop-sharing', ({ roomId, id }) => {
+        if (rooms[roomId]) {
+            const participant = rooms[roomId].find(p => p.id === id)
+            if (participant) {
+                participant.isSharingScreen = false;
+            }
+            io.to(roomId).emit('update-participants', rooms[roomId].map(p => ({...p, isMuted: false, isCameraOff: false})))
+        }
     })
 
     socket.on('disconnecting', () => {

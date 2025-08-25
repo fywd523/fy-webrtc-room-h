@@ -66,17 +66,23 @@ export default function RoomPage() {
 
     socket.on('connect', () => {
       console.log('connected to socket server', socket.id)
-       if (userName) {
-         socket.emit('join-room', { roomId, name: userName, id: socket.id });
+       if (urlName && !participants.find(p => p.id === socket.id)) {
+         socket.emit('join-room', { roomId, name: urlName, id: socket.id });
        }
     })
 
-    if (userName) {
-      socket.emit('join-room', { roomId, name: userName, id: socket.id })
+    if (urlName && socket.id && !participants.find(p => p.id === socket.id)) {
+      socket.emit('join-room', { roomId, name: urlName, id: socket.id })
     }
 
     socket.on('update-participants', (participants: Participant[]) => {
       setParticipants(participants)
+      // Check if current user is sharing screen based on server state
+      const me = participants.find(p => p.id === socketRef.current?.id)
+      if (me) {
+        setIsSharingScreen(me.isSharingScreen || false)
+      }
+      
       if (isLoading) {
         setIsLoading(false);
       }
@@ -93,7 +99,7 @@ export default function RoomPage() {
     return () => {
       socket.disconnect()
     }
-  }, [roomId, urlName, userName, isLoading])
+  }, [roomId, urlName, isLoading, participants, userName])
 
   const handleNameSubmit = (name: string) => {
     const newUrl = `${window.location.pathname}?name=${encodeURIComponent(name)}`;
@@ -109,6 +115,22 @@ export default function RoomPage() {
       title: t.copied_to_clipboard,
       description: `${t.room_id}: ${roomId}`,
     })
+  }
+  
+  const toggleScreenShare = () => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    if (!isSharingScreen) {
+        // For simplicity, we are not handling the browser's screen sharing stream here.
+        // In a real app, you would use `navigator.mediaDevices.getDisplayMedia()`
+        // and manage the stream.
+        socket.emit('start-sharing', { roomId, id: socket.id });
+        setIsSharingScreen(true);
+    } else {
+        socket.emit('stop-sharing', { roomId, id: socket.id });
+        setIsSharingScreen(false);
+    }
   }
 
   const handleSendMessage = (text: string) => {
@@ -225,7 +247,7 @@ export default function RoomPage() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="secondary" size="lg" className="rounded-full w-14 h-14" onClick={() => setIsSharingScreen(!isSharingScreen)}>
+                <Button variant="secondary" size="lg" className="rounded-full w-14 h-14" onClick={toggleScreenShare}>
                   {isSharingScreen ? <ScreenShareOff className="h-6 w-6 text-primary" /> : <ScreenShare className="h-6 w-6" />}
                 </Button>
               </TooltipTrigger>
@@ -236,8 +258,8 @@ export default function RoomPage() {
               <TooltipTrigger asChild>
                 <Button variant="secondary" size="lg" className="rounded-full w-14 h-14 relative" onClick={() => setIsChatOpen(true)}>
                   <MessageSquare className="h-6 w-6" />
-                  {messages.length > 0 && (
-                      <Badge variant="destructive" className="absolute -top-1 -right-1 p-1 h-5 w-5 flex items-center justify-center text-xs">{messages.length > 0 ? '!' : ''}</Badge>
+                  {messages.filter(m => !m.isLocal).length > 0 && (
+                      <Badge variant="destructive" className="absolute -top-1 -right-1 p-1 h-5 w-5 flex items-center justify-center text-xs">!</Badge>
                   )}
                 </Button>
               </TooltipTrigger>
