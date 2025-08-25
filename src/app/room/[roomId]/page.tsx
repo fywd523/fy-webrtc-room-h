@@ -508,9 +508,7 @@ export default function RoomPage() {
                          <video 
                           ref={el => { if (el && el.srcObject !== mainSpeakerStream) el.srcObject = mainSpeakerStream }} 
                           className="w-full h-full object-contain" 
-                          autoPlay 
-                          playsInline
-                          muted={mainSpeaker.id === selfId}
+                          autoPlay playsInline muted
                         />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center">
@@ -554,7 +552,7 @@ export default function RoomPage() {
                    return (
                       <div key={p.id} className="relative aspect-video h-full rounded-lg overflow-hidden bg-card border shadow-md">
                           {remoteStream ? (
-                            <video ref={el => { if (el && el.srcObject !== remoteStream) el.srcObject = remoteStream }} className="w-full h-full object-cover" autoPlay playsInline />
+                            <video ref={el => { if (el && el.srcObject !== remoteStream) el.srcObject = remoteStream }} className="w-full h-full object-cover" muted autoPlay playsInline />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center bg-muted">
                                <VideoOff className="h-8 w-8 text-muted-foreground" />
