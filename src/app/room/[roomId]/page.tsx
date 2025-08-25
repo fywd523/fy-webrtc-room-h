@@ -184,24 +184,26 @@ export default function RoomPage() {
                   {messages.map((msg) => {
                     const isMyMessage = msg.senderId === socket?.id;
                     return (
-                       <div key={msg.id} className={cn("flex w-full flex-col", isMyMessage ? "items-end" : "items-start")}>
-                          <div className={cn("flex items-baseline gap-2", isMyMessage && "flex-row-reverse")}>
-                              <p className="text-xs text-muted-foreground">{isMyMessage ? t.you : msg.name}</p>
-                              <p className="text-xs text-muted-foreground">{msg.timestamp}</p>
-                          </div>
-                          <div className={cn("mt-1 flex items-end gap-2", isMyMessage && "flex-row-reverse")}>
-                              <Avatar className="h-8 w-8">
-                                <AvatarFallback>{msg.name.charAt(0)}</AvatarFallback>
-                              </Avatar>
-                              <div className={cn(
-                                "max-w-[75%] break-words rounded-lg p-2 text-sm",
-                                isMyMessage
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-muted"
-                              )}>
-                                {msg.text}
-                              </div>
-                          </div>
+                       <div key={msg.id} className={cn("flex w-full", isMyMessage ? "justify-end" : "justify-start")}>
+                           <div className="flex flex-col">
+                                <div className={cn("flex items-baseline gap-2", isMyMessage && "flex-row-reverse")}>
+                                    <p className="text-xs text-muted-foreground">{isMyMessage ? t.you : msg.name}</p>
+                                    <p className="text-xs text-muted-foreground">{msg.timestamp}</p>
+                                </div>
+                                <div className={cn("mt-1 flex items-end gap-2", isMyMessage && "flex-row-reverse")}>
+                                    <Avatar className="h-8 w-8">
+                                      <AvatarFallback>{msg.name.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                    <div className={cn(
+                                      "max-w-[75%] break-words rounded-lg p-3 text-sm",
+                                      isMyMessage
+                                        ? "bg-primary text-primary-foreground"
+                                        : "bg-muted"
+                                    )}>
+                                      {msg.text}
+                                    </div>
+                                </div>
+                           </div>
                       </div>
                     )
                   })}
