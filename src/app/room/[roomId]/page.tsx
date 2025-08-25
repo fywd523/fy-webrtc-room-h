@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import {
@@ -13,15 +13,10 @@ import {
   ScreenShareOff,
   MessageSquare,
   PhoneOff,
-  Send,
   Users,
-  Smile,
 } from 'lucide-react'
-import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react'
 
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useToast } from '@/hooks/use-toast'
 import ConnectWaveLogo from '@/components/ConnectWaveLogo'
 import { useTranslation } from '@/hooks/use-translation'
@@ -29,27 +24,10 @@ import LanguageSwitcher from '@/components/LanguageSwitcher'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import io, { Socket } from 'socket.io-client'
-import { cn } from '@/lib/utils'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { type Message, type Participant } from '@/lib/types'
+import { ChatPanel } from '@/components/ChatPanel'
 
-
-interface Participant {
-  id: string
-  name: string
-  isMuted: boolean
-  isCameraOff: boolean
-  isSharingScreen?: boolean
-}
-
-interface Message {
-  id: number
-  senderId: string
-  name: string
-  text: string
-  timestamp: string
-}
 
 export default function RoomPage() {
   const params = useParams()
@@ -67,8 +45,6 @@ export default function RoomPage() {
   
   const [participants, setParticipants] = useState<Participant[]>([])
   const [messages, setMessages] = useState<Message[]>([])
-  const [newMessage, setNewMessage] = useState("")
-  const [isEmojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
   useEffect(() => {
     const newSocket = io()
@@ -85,12 +61,12 @@ export default function RoomPage() {
       setParticipants(participants)
     })
 
-    newSocket.on('receive-message', (message: Message) => {
-        setMessages(prev => [...prev, message])
+    newSocket.on('receive-message', (message: Omit<Message, 'isLocal'>) => {
+        setMessages(prev => [...prev, {...message, isLocal: false}])
     })
 
-    newSocket.on('update-messages', (history: Message[]) => {
-        setMessages(history);
+    newSocket.on('update-messages', (history: Omit<Message, 'isLocal'>[]) => {
+        setMessages(history.map(msg => ({...msg, isLocal: msg.senderId === newSocket.id})));
     });
 
     return () => {
@@ -106,24 +82,19 @@ export default function RoomPage() {
     })
   }
 
-  const sendMessage = () => {
-      if (newMessage.trim() && socket) {
-          const message: Message = {
-              id: Date.now(),
+  const handleSendMessage = (text: string) => {
+      if (text && socket) {
+          const message: Omit<Message, 'isLocal'> = {
+              id: Date.now().toString(),
               senderId: socket.id,
-              name: userName,
-              text: newMessage,
+              senderName: userName,
+              text: text,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           }
           socket.emit('send-message', { roomId, message });
-          setNewMessage("")
-          setEmojiPickerOpen(false);
+          setMessages(prev => [...prev, {...message, isLocal: true}])
       }
   }
-
-  const onEmojiClick = (emojiData: EmojiClickData) => {
-    setNewMessage(prevMessage => prevMessage + emojiData.emoji);
-  };
 
   const mainSpeaker = participants.find(p => p.isSharingScreen) || participants.find(p => p.id === socket?.id) || participants[0];
   const otherParticipants = participants.filter(p => p.id !== mainSpeaker?.id);
@@ -169,71 +140,14 @@ export default function RoomPage() {
              </div>
           </div>
           
-          <Sheet open={isChatOpen} onOpenChange={setIsChatOpen}>
-             <div className="hidden">
-                <SheetTrigger asChild>
-                    <Button variant="outline" onClick={() => setIsChatOpen(true)}>{t.chat}</Button>
-                </SheetTrigger>
-             </div>
-            <SheetContent className="flex flex-col w-full sm:max-w-md">
-              <SheetHeader>
-                <SheetTitle>{t.chat}</SheetTitle>
-              </SheetHeader>
-              <ScrollArea className="flex-1 -mx-6">
-                <div className="px-6 py-4 space-y-4">
-                  {messages.map((msg) => {
-                    const isMyMessage = msg.senderId === socket?.id;
-                    return (
-                       <div key={msg.id} className={cn("flex w-full", isMyMessage ? "justify-end" : "justify-start")}>
-                           <div className="flex flex-col">
-                                <div className={cn("flex items-baseline gap-2", isMyMessage && "flex-row-reverse")}>
-                                    <p className="text-xs text-muted-foreground">{isMyMessage ? t.you : msg.name}</p>
-                                    <p className="text-xs text-muted-foreground">{msg.timestamp}</p>
-                                </div>
-                                <div className={cn("mt-1 flex items-end gap-2", isMyMessage && "flex-row-reverse")}>
-                                    <Avatar className="h-8 w-8">
-                                      <AvatarFallback>{msg.name.charAt(0)}</AvatarFallback>
-                                    </Avatar>
-                                    <div className={cn(
-                                      "max-w-[75%] break-words rounded-lg p-3 text-sm",
-                                      isMyMessage
-                                        ? "bg-primary text-primary-foreground"
-                                        : "bg-muted"
-                                    )}>
-                                      {msg.text}
-                                    </div>
-                                </div>
-                           </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </ScrollArea>
-               <div className="mt-auto bg-background pb-2">
-                <div className="flex items-center gap-2">
-                  <Popover open={isEmojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
-                    <PopoverTrigger asChild>
-                       <Button variant="outline" size="icon">
-                        <Smile className="h-4 w-4" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 border-0">
-                      <EmojiPicker onEmojiClick={onEmojiClick} theme={Theme.AUTO} />
-                    </PopoverContent>
-                  </Popover>
-                  <Input
-                    placeholder={t.type_message_placeholder}
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                  />
-                  <Button onClick={sendMessage} size="icon">
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
+          <ChatPanel 
+            isOpen={isChatOpen}
+            onOpenChange={setIsChatOpen}
+            messages={messages}
+            onSendMessage={handleSendMessage}
+            t={t}
+          />
+
         </main>
 
         <footer className="flex h-20 items-center justify-center border-t bg-background/80 backdrop-blur-sm shrink-0">

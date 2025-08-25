@@ -15,10 +15,11 @@ interface Participant {
 }
 
 interface Message {
-  id: number
-  name: string
-  text: string
-  timestamp: string
+  id: string
+  senderId: string;
+  senderName: string;
+  text: string;
+  timestamp: string;
 }
 
 const rooms: Record<string, Participant[]> = {}
@@ -53,7 +54,7 @@ app.prepare().then(() => {
       if (roomMessages[roomId]) {
         roomMessages[roomId].push(message)
       }
-      io.to(roomId).emit('receive-message', message)
+      socket.to(roomId).emit('receive-message', message)
     })
 
     socket.on('disconnecting', () => {
