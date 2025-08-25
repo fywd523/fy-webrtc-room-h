@@ -15,11 +15,11 @@ import {
   PhoneOff,
   Send,
   Users,
-  X,
+  Smile,
 } from 'lucide-react'
+import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useToast } from '@/hooks/use-toast'
@@ -28,10 +28,11 @@ import { useTranslation } from '@/hooks/use-translation'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import io, { Socket } from 'socket.io-client'
 import { cn } from '@/lib/utils'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 
 interface Participant {
@@ -67,6 +68,7 @@ export default function RoomPage() {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
+  const [isEmojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
   useEffect(() => {
     const newSocket = io()
@@ -115,8 +117,13 @@ export default function RoomPage() {
           }
           socket.emit('send-message', { roomId, message });
           setNewMessage("")
+          setEmojiPickerOpen(false);
       }
   }
+
+  const onEmojiClick = (emojiData: EmojiClickData) => {
+    setNewMessage(prevMessage => prevMessage + emojiData.emoji);
+  };
 
   const mainSpeaker = participants.find(p => p.isSharingScreen) || participants.find(p => p.id === socket?.id) || participants[0];
   const otherParticipants = participants.filter(p => p.id !== mainSpeaker?.id);
@@ -177,29 +184,41 @@ export default function RoomPage() {
                   {messages.map((msg) => {
                     const isMyMessage = msg.senderId === socket?.id;
                     return (
-                      <div key={msg.id} className={cn("flex flex-col w-full", isMyMessage ? "items-end" : "items-start")}>
-                         <div className={cn("flex items-baseline gap-2", isMyMessage && "flex-row-reverse")}>
-                            <p className="text-xs text-muted-foreground">{isMyMessage ? t.you : msg.name}</p>
-                            <p className="text-xs text-muted-foreground">{msg.timestamp}</p>
+                       <div key={msg.id} className={cn("flex w-full flex-col", isMyMessage ? "items-end" : "items-start")}>
+                          <div className={cn("flex items-baseline gap-2", isMyMessage && "flex-row-reverse")}>
+                              <p className="text-xs text-muted-foreground">{isMyMessage ? t.you : msg.name}</p>
+                              <p className="text-xs text-muted-foreground">{msg.timestamp}</p>
                           </div>
                           <div className={cn("mt-1 flex items-end gap-2", isMyMessage && "flex-row-reverse")}>
-                            <Avatar className="h-8 w-8">
-                              <AvatarFallback>{msg.name.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div className={cn(
-                              "text-sm p-2 rounded-lg break-words max-w-[75%]",
-                              isMyMessage ? "bg-primary text-primary-foreground" : "bg-muted"
-                            )}>
-                              {msg.text}
-                            </div>
-                        </div>
+                              <Avatar className="h-8 w-8">
+                                <AvatarFallback>{msg.name.charAt(0)}</AvatarFallback>
+                              </Avatar>
+                              <div className={cn(
+                                "max-w-[75%] break-words rounded-lg p-2 text-sm",
+                                isMyMessage
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-muted"
+                              )}>
+                                {msg.text}
+                              </div>
+                          </div>
                       </div>
                     )
                   })}
                 </div>
               </ScrollArea>
-              <div className="mt-auto bg-background pb-2">
+               <div className="mt-auto bg-background pb-2">
                 <div className="flex items-center gap-2">
+                  <Popover open={isEmojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
+                    <PopoverTrigger asChild>
+                       <Button variant="outline" size="icon">
+                        <Smile className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 border-0">
+                      <EmojiPicker onEmojiClick={onEmojiClick} theme={Theme.AUTO} />
+                    </PopoverContent>
+                  </Popover>
                   <Input
                     placeholder={t.type_message_placeholder}
                     value={newMessage}
