@@ -334,6 +334,62 @@ export default function RoomPage() {
       description: `${t.room_id}: ${roomId}`,
     })
   }
+
+  // 添加在 createPeerConnection 函数附近
+  const handleStreamChange = async (newStream: MediaStream | null) => {
+      const socket = socketRef.current;
+      if (!socket) return;
+
+      // 获取所有其他参与者
+      const otherParticipants = participants.filter(p => p.id !== socket.id);
+      
+      for (const participant of otherParticipants) {
+          const peerId = participant.id;
+          let pc = peerConnections.current[peerId];
+          
+          if (!pc) {
+              // 如果不存在连接，创建新的
+              pc = createPeerConnection(peerId);
+          }
+          try {
+              if (newStream) {
+                  // 替换视频轨道
+                  const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
+                  const videoTrack = newStream.getVideoTracks()[0];
+                  
+                  if (videoSender && videoTrack) {
+                      await videoSender.replaceTrack(videoTrack);
+                  } else if (videoTrack) {
+                      pc.addTrack(videoTrack, newStream);
+                  }
+
+                  // 替换音频轨道（如果有）
+                  const audioSender = pc.getSenders().find(s => s.track?.kind === 'audio');
+                  const audioTrack = newStream.getAudioTracks()[0];
+                  
+                  if (audioSender && audioTrack) {
+                      await audioSender.replaceTrack(audioTrack);
+                  } else if (audioTrack) {
+                      pc.addTrack(audioTrack, newStream);
+                  }
+              } else {
+                  // 移除视频轨道
+                  const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
+                  if (videoSender) {
+                      await videoSender.replaceTrack(null);
+                  }
+              }
+
+              // 创建新的offer并发送给该参与者
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              socket.emit('webrtc-offer', { to: peerId, offer });
+
+          } catch (error) {
+              console.error(`Error handling stream change for ${peerId}:`, error);
+          }
+      }
+  }
   
   const toggleScreenShare = async () => {
     const socket = socketRef.current;
@@ -341,18 +397,24 @@ export default function RoomPage() {
 
     if (!isSharingScreen) {
         try {
-            const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+            const screenStream = await navigator.mediaDevices.getDisplayMedia({ 
+                video: true, 
+                audio: true 
+            });
             
             screenStream.getVideoTracks()[0].onended = () => {
                 if (socketRef.current && peerConnections.current && isSharingScreen) {
-                   toggleScreenShare(); // Call again to stop sharing
+                   toggleScreenShare();
                 }
             };
             
             setIsSharingScreen(true);
-            setIsCameraOff(true); // Disable camera view when sharing screen
+            setIsCameraOff(true);
             setLocalStream(screenStream);
             socket.emit('start-sharing', { roomId, id: socket.id });
+
+            // 关键修复：向所有参与者重新协商
+            await handleStreamChange(screenStream);
 
         } catch (error) {
             console.error('Error sharing screen:', error);
@@ -362,26 +424,12 @@ export default function RoomPage() {
         socket.emit('stop-sharing', { roomId, id: socket.id });
         
         localStream?.getTracks().forEach(track => track.stop());
-
-        // Revert to a null stream, user must re-enable camera manually
         setIsSharingScreen(false);
         setLocalStream(null);
-        setIsCameraOff(true); 
+        setIsCameraOff(true);
 
-        // Send a new offer to signal the track change (removal)
-        Object.entries(peerConnections.current).forEach(async ([peerId, pc]) => {
-           const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-           if (sender) {
-               await sender.replaceTrack(null);
-           }
-            pc.createOffer()
-                .then(offer => pc.setLocalDescription(offer))
-                .then(() => {
-                    if (socketRef.current && pc.localDescription && peerId) {
-                        socketRef.current.emit('webrtc-offer', { to: peerId, offer: pc.localDescription });
-                    }
-                });
-        });
+        // 关键修复：重新协商移除视频流
+        await handleStreamChange(null);
     }
   }
 
