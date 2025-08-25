@@ -72,7 +72,7 @@ export function ChatPanel({ isOpen, onOpenChange, messages, onSendMessage, t }: 
                                 "max-w-[75%] break-words rounded-lg p-3 text-sm",
                                 msg.isLocal
                                     ? "bg-primary text-primary-foreground"
-                                    : "bg-muted"
+                                    : "bg-muted border"
                                 )}>
                                     <p className="whitespace-pre-wrap break-all">{msg.text}</p>
                                 </div>
