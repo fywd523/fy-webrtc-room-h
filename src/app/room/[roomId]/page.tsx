@@ -161,27 +161,36 @@ export default function RoomPage() {
     const handleWebRtcOffer = async ({ from, offer }: { from: string, offer: RTCSessionDescriptionInit }) => {
       console.log(`Received webrtc offer from ${from}`);
       const pc = peerConnections.current[from] || createPeerConnection(from);
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      if (socketRef.current) {
-        socketRef.current.emit('webrtc-answer', { to: from, answer });
+      
+      if (pc.signalingState !== 'closed') {
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        if (socketRef.current) {
+          socketRef.current.emit('webrtc-answer', { to: from, answer });
+        }
+      } else {
+        console.warn(`Received offer from ${from}, but connection is closed.`);
       }
     };
 
     const handleWebRtcAnswer = ({ from, answer }: { from: string, answer: RTCSessionDescriptionInit }) => {
        console.log(`Received webrtc answer from ${from}`);
       const pc = peerConnections.current[from];
-      if (pc) {
+      if (pc && pc.signalingState !== 'closed') {
         pc.setRemoteDescription(new RTCSessionDescription(answer)).catch(e => console.error("Error setting remote description:", e));
+      } else {
+        console.warn(`Received answer from ${from}, but connection is closed or does not exist.`);
       }
     };
 
     const handleWebRtcIceCandidate = ({ from, candidate }: { from: string, candidate: RTCIceCandidateInit }) => {
        console.log(`Received webrtc ice candidate from ${from}`);
       const pc = peerConnections.current[from];
-      if (pc) {
+      if (pc && pc.signalingState !== 'closed') {
         pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.error("Error adding ICE candidate:", e));
+      } else {
+        console.warn(`Received ICE candidate from ${from}, but connection is closed or does not exist.`);
       }
     };
 
@@ -245,11 +254,10 @@ export default function RoomPage() {
       });
       // After adding tracks, we might need to renegotiate
       // This is a simplified approach; a more robust one would check signalingState
-       Object.values(peerConnections.current).forEach(pc => {
+       Object.entries(peerConnections.current).forEach(([peerId, pc]) => {
           pc.createOffer()
             .then(offer => pc.setLocalDescription(offer))
             .then(() => {
-                 const peerId = Object.keys(peerConnections.current).find(key => peerConnections.current[key] === pc);
                   if (socketRef.current && pc.localDescription && peerId) {
                     socketRef.current.emit('webrtc-offer', { to: peerId, offer: pc.localDescription });
                   }
@@ -279,8 +287,12 @@ export default function RoomPage() {
        const stream = await setupStream(true, true);
        if (stream) setIsCameraOff(false);
     } else {
-      localStream.getVideoTracks().forEach(track => track.enabled = !track.enabled);
-      setIsCameraOff(prev => !prev);
+      let wasVideoEnabled = false;
+      localStream.getVideoTracks().forEach(track => {
+        wasVideoEnabled = track.enabled;
+        track.enabled = !track.enabled
+      });
+      setIsCameraOff(wasVideoEnabled);
     }
   };
 
@@ -315,7 +327,9 @@ export default function RoomPage() {
             const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
             
             stream.getTracks()[0].onended = () => {
-                if (socketRef.current) {
+                // Check if we are still in sharing state before toggling
+                // The user might have already clicked the button
+                if (socketRef.current && peerConnections.current) {
                    toggleScreenShare(); // Call again to stop sharing
                 }
             };
@@ -330,6 +344,8 @@ export default function RoomPage() {
                 const sender = pc.getSenders().find(s => s.track?.kind === 'video');
                 if (sender) {
                     sender.replaceTrack(videoTrack);
+                } else {
+                    pc.addTrack(videoTrack, stream);
                 }
             });
 
@@ -344,20 +360,25 @@ export default function RoomPage() {
 
         // Revert to camera stream (or null if camera was off)
         setIsSharingScreen(false);
-        setIsCameraOff(true);
         setLocalStream(null); // Set to null, user must re-enable camera manually
+        setIsCameraOff(true); // Ensure camera is marked as off
 
-        // We need to signal the track removal
-        Object.values(peerConnections.current).forEach(pc => {
-            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-            if (sender) {
-                pc.removeTrack(sender);
-            }
-             // Renegotiate to signal track removal
+        // We need to signal the track removal and potentially replace with camera
+        const newStreamForPeers = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
+        newStreamForPeers.getVideoTracks().forEach(t => t.enabled = false); // Start with camera off
+        newStreamForPeers.getAudioTracks().forEach(t => t.enabled = !isMuted);
+        setLocalStream(newStreamForPeers);
+
+        const videoTrack = newStreamForPeers.getVideoTracks()[0];
+        Object.entries(peerConnections.current).forEach(async ([peerId, pc]) => {
+           const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+           if (sender) {
+               await sender.replaceTrack(videoTrack);
+           }
+            // Renegotiate to signal track change
              pc.createOffer()
                 .then(offer => pc.setLocalDescription(offer))
                 .then(() => {
-                    const peerId = Object.keys(peerConnections.current).find(key => peerConnections.current[key] === pc);
                     if (socketRef.current && pc.localDescription && peerId) {
                         socketRef.current.emit('webrtc-offer', { to: peerId, offer: pc.localDescription });
                     }
@@ -419,11 +440,11 @@ export default function RoomPage() {
 
         <main className="flex flex-1 overflow-hidden">
           <div className="flex flex-1 flex-col p-4 gap-4">
-             {mainSpeaker && (
+             {mainSpeaker ? (
                 <div className="relative flex-1 w-full h-full rounded-lg overflow-hidden bg-card border shadow-md">
                     {mainSpeakerStream ? (
                          <video 
-                          ref={el => { if (el) el.srcObject = mainSpeakerStream }} 
+                          ref={el => { if (el && el.srcObject !== mainSpeakerStream) el.srcObject = mainSpeakerStream }} 
                           className="w-full h-full object-contain" 
                           autoPlay 
                           muted={mainSpeaker.id === socketRef.current?.id}
@@ -431,20 +452,27 @@ export default function RoomPage() {
                     ) : (
                         <div className="w-full h-full flex items-center justify-center">
                            <div className="text-center">
-                             <Users className="h-16 w-16 mx-auto text-muted-foreground" />
+                             <VideoOff className="h-16 w-16 mx-auto text-muted-foreground" />
                               <p className="mt-2 text-muted-foreground">
-                                {mainSpeaker ? `${mainSpeaker.name} ${t.you}` : t.welcome_to_room}
+                                {mainSpeaker.name}'s video is off
                               </p>
                            </div>
                         </div>
                     )}
                     <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg text-sm font-medium">{mainSpeaker.name} {mainSpeaker.id === socketRef.current?.id && '(You)'} {mainSpeaker.isSharingScreen && `(${t.screen_sharing})`}</div>
                 </div>
+             ) : (
+                <div className="relative flex-1 w-full h-full rounded-lg overflow-hidden bg-card border shadow-md flex items-center justify-center">
+                    <div className="text-center">
+                        <Users className="h-16 w-16 mx-auto text-muted-foreground" />
+                        <p className="mt-2 text-muted-foreground">{t.welcome_to_room}</p>
+                    </div>
+                </div>
              )}
              <div className="flex gap-4 h-32 md:h-40 shrink-0">
                   {/* Local Video Thumbnail */}
                   <div className="relative aspect-video h-full rounded-lg overflow-hidden bg-card border shadow-md">
-                     {localStream && !isCameraOff && !isSharingScreen ? (
+                     {localStream && !isCameraOff ? (
                        <video ref={localVideoRef} className="w-full h-full object-cover" autoPlay muted />
                      ) : (
                         <div className="w-full h-full flex items-center justify-center bg-muted">
@@ -459,10 +487,11 @@ export default function RoomPage() {
 
                  {otherParticipants.map((p) => {
                    const remoteStream = remoteStreams[p.id];
+                   const participantDetails = participants.find(ppt => ppt.id === p.id);
                    return (
                       <div key={p.id} className="relative aspect-video h-full rounded-lg overflow-hidden bg-card border shadow-md">
-                          {remoteStream && !p.isCameraOff ? (
-                            <video ref={el => { if (el) el.srcObject = remoteStream }} className="w-full h-full object-cover" autoPlay />
+                          {remoteStream && !participantDetails?.isCameraOff ? (
+                            <video ref={el => { if (el && el.srcObject !== remoteStream) el.srcObject = remoteStream }} className="w-full h-full object-cover" autoPlay />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center bg-muted">
                                <VideoOff className="h-8 w-8 text-muted-foreground" />
@@ -470,7 +499,7 @@ export default function RoomPage() {
                           )}
                            <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium">{p.name}</div>
                            <div className="absolute top-2 right-2 bg-black/50 p-1 rounded-full">
-                              {p.isMuted ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-white" />}
+                              {participantDetails?.isMuted ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-white" />}
                            </div>
                       </div>
                    )
