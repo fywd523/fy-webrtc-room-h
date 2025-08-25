@@ -95,7 +95,6 @@ export default function RoomPage() {
     return pc;
   }, [localStream]);
 
-
   // Effect for initializing and managing socket connection
   useEffect(() => {
     setIsLoading(false);
@@ -262,7 +261,34 @@ export default function RoomPage() {
       };
   }, [createPeerConnection]);
 
+    // This effect ensures that when localStream is set/changed, its tracks are added to all peer connections.
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
 
+    if (localStream) {
+      const videoTrack = localStream.getVideoTracks()[0];
+      const audioTrack = localStream.getAudioTracks()[0];
+
+      Object.values(peerConnections.current).forEach(pc => {
+          const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
+          if (videoSender && videoTrack) {
+              videoSender.replaceTrack(videoTrack);
+          } else if(videoTrack) {
+              pc.addTrack(videoTrack, localStream);
+          }
+
+          const audioSender = pc.getSenders().find(s => s.track?.kind === 'audio');
+          if (audioSender && audioTrack) {
+              audioSender.replaceTrack(audioTrack);
+          } else if (audioTrack) {
+               pc.addTrack(audioTrack, localStream);
+          }
+      });
+    }
+
+  }, [localStream]);
 
   const setupStream = async (constraints: MediaStreamConstraints): Promise<MediaStream | null> => {
     try {
@@ -302,41 +328,14 @@ export default function RoomPage() {
       setIsCameraOff(!videoTrack.enabled);
     }
   };
-  
-  // This effect ensures that when localStream is set/changed, its tracks are added to all peer connections.
-  useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
-    }
-
-    if (localStream) {
-      const videoTrack = localStream.getVideoTracks()[0];
-      const audioTrack = localStream.getAudioTracks()[0];
-
-      Object.values(peerConnections.current).forEach(pc => {
-          const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
-          if (videoSender && videoTrack) {
-              videoSender.replaceTrack(videoTrack);
-          } else if(videoTrack) {
-              pc.addTrack(videoTrack, localStream);
-          }
-
-          const audioSender = pc.getSenders().find(s => s.track?.kind === 'audio');
-          if (audioSender && audioTrack) {
-              audioSender.replaceTrack(audioTrack);
-          } else if (audioTrack) {
-               pc.addTrack(audioTrack, localStream);
-          }
-      });
-    }
-
-  }, [localStream]);
 
   const handleNameSubmit = (name: string) => {
     const newUrl = `${window.location.pathname}?name=${encodeURIComponent(name)}`;
     router.replace(newUrl, { scroll: false });
     setUserName(name);
     setIsNameModalOpen(false);
+    // 刷新页面
+    window.location.href = newUrl;
   }
 
   const copyRoomId = () => {

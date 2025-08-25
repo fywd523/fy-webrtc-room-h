@@ -48,7 +48,11 @@ export function NamePromptDialog({ isOpen, onNameSubmit, t }: NamePromptDialogPr
             placeholder={t.your_name_placeholder}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
+            onKeyUp={(e) => {
+              if (e.key === 'Enter' && name.trim()) {
+                handleSubmit();
+              }
+            }}
             autoFocus
           />
         </div>
