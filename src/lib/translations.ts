@@ -25,6 +25,7 @@ export const translations = {
     leave_meeting: 'Leave Meeting',
     screen_sharing: 'Sharing Screen',
     type_message_placeholder: 'Type a message...',
+    you: 'You',
   },
   zh: {
     appName: 'ConnectWave',
@@ -52,6 +53,7 @@ export const translations = {
     leave_meeting: '离开会议',
     screen_sharing: '正在共享屏幕',
     type_message_placeholder: '输入消息...',
+    you: '你',
   },
 }
 

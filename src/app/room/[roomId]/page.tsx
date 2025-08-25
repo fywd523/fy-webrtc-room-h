@@ -43,6 +43,7 @@ interface Participant {
 
 interface Message {
   id: number
+  senderId: string
   name: string
   text: string
   timestamp: string
@@ -56,6 +57,7 @@ export default function RoomPage() {
   const roomId = params.roomId as string
 
   const [socket, setSocket] = useState<Socket | null>(null)
+  const [userName, setUserName] = useState('')
   const [isMuted, setIsMuted] = useState(false)
   const [isCameraOff, setIsCameraOff] = useState(false)
   const [isSharingScreen, setIsSharingScreen] = useState(false)
@@ -72,12 +74,21 @@ export default function RoomPage() {
     newSocket.on('connect', () => {
       console.log('connected to socket server', newSocket.id)
       const name = prompt("Please enter your name") || "Anonymous"
+      setUserName(name)
       newSocket.emit('join-room', { roomId, name, id: newSocket.id })
     })
 
     newSocket.on('update-participants', (participants: Participant[]) => {
       setParticipants(participants)
     })
+
+    newSocket.on('receive-message', (message: Message) => {
+        setMessages(prev => [...prev, message])
+    })
+
+    newSocket.on('update-messages', (history: Message[]) => {
+        setMessages(history);
+    });
 
     return () => {
       newSocket.disconnect()
@@ -93,14 +104,15 @@ export default function RoomPage() {
   }
 
   const sendMessage = () => {
-      if (newMessage.trim()) {
+      if (newMessage.trim() && socket) {
           const message: Message = {
-              id: messages.length + 1,
-              name: 'You',
+              id: Date.now(),
+              senderId: socket.id,
+              name: userName,
               text: newMessage,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           }
-          setMessages(prev => [...prev, message]);
+          socket.emit('send-message', { roomId, message });
           setNewMessage("")
       }
   }
@@ -168,7 +180,7 @@ export default function RoomPage() {
                       </Avatar>
                       <div className="flex-1">
                           <div className="flex items-baseline gap-2">
-                            <p className="font-semibold text-sm">{msg.name}</p>
+                            <p className="font-semibold text-sm">{msg.senderId === socket?.id ? t.you : msg.name}</p>
                             <p className="text-xs text-muted-foreground">{msg.timestamp}</p>
                           </div>
                           <p className="text-sm bg-muted p-2 rounded-lg mt-1">{msg.text}</p>
@@ -238,7 +250,7 @@ export default function RoomPage() {
                 <Button variant="secondary" size="lg" className="rounded-full w-14 h-14 relative" onClick={() => setIsChatOpen(true)}>
                   <MessageSquare className="h-6 w-6" />
                   {messages.length > 0 && (
-                      <Badge variant="destructive" className="absolute -top-1 -right-1 p-1 h-5 w-5 flex items-center justify-center text-xs">{messages.length}</Badge>
+                      <Badge variant="destructive" className="absolute -top-1 -right-1 p-1 h-5 w-5 flex items-center justify-center text-xs">{messages.length > 0 ? '!' : ''}</Badge>
                   )}
                 </Button>
               </TooltipTrigger>

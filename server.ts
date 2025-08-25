@@ -14,7 +14,15 @@ interface Participant {
   name: string;
 }
 
+interface Message {
+  id: number
+  name: string
+  text: string
+  timestamp: string
+}
+
 const rooms: Record<string, Participant[]> = {}
+const roomMessages: Record<string, Message[]> = {}
 
 app.prepare().then(() => {
   const httpServer = createServer(handler)
@@ -27,6 +35,7 @@ app.prepare().then(() => {
       socket.join(roomId)
       if (!rooms[roomId]) {
         rooms[roomId] = []
+        roomMessages[roomId] = []
       }
       // Avoid duplicate participants
       if (!rooms[roomId].find(p => p.id === id)) {
@@ -37,6 +46,14 @@ app.prepare().then(() => {
       console.log('current rooms', rooms)
       
       io.to(roomId).emit('update-participants', rooms[roomId].map(p => ({...p, isMuted: false, isCameraOff: false})))
+      socket.emit('update-messages', roomMessages[roomId])
+    })
+
+    socket.on('send-message', ({ roomId, message }: { roomId: string; message: Message }) => {
+      if (roomMessages[roomId]) {
+        roomMessages[roomId].push(message)
+      }
+      io.to(roomId).emit('receive-message', message)
     })
 
     socket.on('disconnecting', () => {
@@ -47,6 +64,10 @@ app.prepare().then(() => {
             rooms[roomId] = rooms[roomId].filter((p) => p.id !== socket.id)
             io.to(roomId).emit('update-participants', rooms[roomId].map(p => ({...p, isMuted: false, isCameraOff: false})))
              console.log('current rooms after disconnect', rooms)
+             if (rooms[roomId].length === 0) {
+               delete rooms[roomId]
+               delete roomMessages[roomId]
+             }
           }
         }
       }
