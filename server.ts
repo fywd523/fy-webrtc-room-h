@@ -8,10 +8,12 @@ const port = parseInt(process.env.PORT || '9002', 10)
 const app = next({ dev, hostname, port })
 const handler = app.getRequestHandler()
 
+// 修改join-room事件处理逻辑
 interface Participant {
   id: string;
   name: string;
   isSharingScreen?: boolean;
+  joinTime: string; // 添加服务器端类型定义
 }
 
 interface Message {
@@ -40,12 +42,22 @@ app.prepare().then(() => {
       }
       // Avoid duplicate participants
       if (!rooms[roomId].find(p => p.id === id)) {
-        rooms[roomId].push({ id, name, isSharingScreen: false })
+        // 记录加入时间（ISO格式）
+        rooms[roomId].push({
+          id, 
+          name, 
+          isSharingScreen: false, 
+          joinTime: new Date().toISOString()
+        })
       }
       
       console.log(`user ${name} (${id}) joined room ${roomId}`)
       
-      io.to(roomId).emit('update-participants', rooms[roomId].map(p => ({...p, isMuted: false, isCameraOff: false})))
+      io.to(roomId).emit('update-participants', rooms[roomId].map(p => ({
+        ...p, 
+        isMuted: false, 
+        isCameraOff: false
+      })))
       socket.emit('update-messages', roomMessages[roomId])
     })
 

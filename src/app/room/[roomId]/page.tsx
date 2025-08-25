@@ -212,20 +212,29 @@ export default function RoomPage() {
           console.log('Self ID:', selfId);
           console.log('Other Participants:', otherParticipants);
 
-          // Handle new participants
+          // 修改参与者处理逻辑
           otherParticipants.forEach(p => {
-              if (!peerConnections.current[p.id]) {
-                  console.log(`New participant ${p.name} (${p.id}) joined. Creating peer connection and offer.`);
-                  const pc = createPeerConnection(p.id);
-                  pc.createOffer()
-                      .then(offer => pc.setLocalDescription(offer))
-                      .then(() => {
-                          if (socketRef.current && pc.localDescription) {
-                              socketRef.current.emit('webrtc-offer', { to: p.id, offer: pc.localDescription });
-                          }
-                      })
-                      .catch(e => console.error("Error creating offer for new participant:", e));
+            if (!peerConnections.current[p.id]) {
+              console.log(`New participant ${p.name} (${p.id}) joined. Creating peer connection.`);
+              const pc = createPeerConnection(p.id);
+              
+              // 获取当前用户的加入时间（从participants中找到自己）
+              const localParticipant = participants.find(part => part.id === socketRef.current?.id);
+              
+              if (localParticipant && localParticipant.joinTime < p.joinTime) {
+                console.log(`Local participant joined earlier (${localParticipant.joinTime} < ${p.joinTime}), initiating offer`);
+                pc.createOffer()
+                  .then(offer => pc.setLocalDescription(offer))
+                  .then(() => {
+                    if (socketRef.current && pc.localDescription) {
+                      socketRef.current.emit('webrtc-offer', { to: p.id, offer: pc.localDescription });
+                    }
+                  })
+                  .catch(e => console.error("Error creating offer:", e));
+              } else {
+                console.log(`Remote participant joined earlier (${p.joinTime} < ${localParticipant?.joinTime}), waiting for offer`);
               }
+            }
           });
 
           // Handle departing participants
