@@ -76,6 +76,7 @@ export default function RoomPage() {
     socket.on('update-participants', (updatedParticipants: Participant[]) => {
       setParticipants(updatedParticipants)
       const me = updatedParticipants.find(p => p.id === socketRef.current?.id)
+      
       if (me) {
         const currentlySharing = me.isSharingScreen || false;
         if (isSharingScreen !== currentlySharing) {
@@ -95,17 +96,22 @@ export default function RoomPage() {
     socket.on('update-messages', (history: Omit<Message, 'isLocal'>[]) => {
         setMessages(history.map(msg => ({...msg, isLocal: msg.senderId === socket.id})));
     });
+    
+    socket.on('disconnect', () => {
+        console.log('Disconnected from server');
+    });
 
     return () => {
       socket.disconnect()
     }
-  }, [roomId, urlName, userName, isLoading, isSharingScreen])
+  }, [roomId, urlName])
+  
 
   useEffect(() => {
-    if (videoRef.current && screenStream) {
+    if (isSharingScreen && screenStream && videoRef.current) {
         videoRef.current.srcObject = screenStream;
     }
-  }, [screenStream]);
+  }, [isSharingScreen, screenStream]);
 
 
   const handleNameSubmit = (name: string) => {
@@ -133,8 +139,12 @@ export default function RoomPage() {
             const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
             setScreenStream(stream);
             stream.getTracks()[0].onended = () => {
-                // Handle user stopping share from browser UI
-                toggleScreenShare(); 
+                // This event is fired when the user stops sharing from the browser's native UI
+                if (socketRef.current && isSharingScreen) {
+                   socketRef.current.emit('stop-sharing', { roomId, id: socketRef.current.id });
+                   setIsSharingScreen(false);
+                   setScreenStream(null);
+                }
             };
             socket.emit('start-sharing', { roomId, id: socket.id });
             setIsSharingScreen(true);
@@ -203,8 +213,10 @@ export default function RoomPage() {
           <div className="flex flex-1 flex-col p-4 gap-4">
              {mainSpeaker && (
                 <div className="relative flex-1 w-full h-full rounded-lg overflow-hidden bg-card border shadow-md">
-                    {isSharingScreen || isViewingScreenShare ? (
-                        <video ref={videoRef} className="w-full h-full object-contain" autoPlay muted={mainSpeaker.id === socketRef.current?.id} />
+                    {isSharingScreen && mainSpeaker.id === socketRef.current?.id ? (
+                        <video ref={videoRef} className="w-full h-full object-contain" autoPlay muted />
+                    ) : isViewingScreenShare ? (
+                        <Image src={`https://placehold.co/1280x720.png`} alt={`${mainSpeaker.name}'s screen share`} layout="fill" objectFit="contain" data-ai-hint="screen sharing" />
                     ) : (
                         <Image src={`https://placehold.co/1280x720.png`} alt={mainSpeaker.name} layout="fill" objectFit="cover" data-ai-hint="person talking" />
                     )}
@@ -271,8 +283,8 @@ export default function RoomPage() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant={isSharingScreen ? "default" : "secondary"} size="lg" className="rounded-full w-14 h-14" onClick={toggleScreenShare}>
-                  {isSharingScreen ? <ScreenShareOff className="h-6 w-6 text-accent-foreground" /> : <ScreenShare className="h-6 w-6" />}
+                <Button variant={isSharingScreen ? "default" : "secondary"} size="lg" className="rounded-full w-14 h-14" onClick={toggleScreenShare} disabled={isViewingScreenShare}>
+                  {isSharingScreen ? <ScreenShareOff className="h-6 w-6" /> : <ScreenShare className="h-6 w-6" />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{isSharingScreen ? t.stop_sharing : t.share_screen}</TooltipContent>
@@ -311,3 +323,5 @@ export default function RoomPage() {
     </TooltipProvider>
   )
 }
+
+    
