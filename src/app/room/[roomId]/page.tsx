@@ -98,11 +98,6 @@ export default function RoomPage() {
 
   // Effect for initializing and managing socket connection
   useEffect(() => {
-    if (!userName) {
-        setIsLoading(!urlName);
-        if (urlName) setUserName(urlName);
-        return;
-    };
     setIsLoading(false);
 
     const socket = io()
