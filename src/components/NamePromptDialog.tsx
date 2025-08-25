@@ -37,15 +37,15 @@ export function NamePromptDialog({ isOpen, onNameSubmit, t }: NamePromptDialogPr
         hideCloseButton={true}
       >
         <DialogHeader>
-          <DialogTitle>Welcome to the Room</DialogTitle>
+          <DialogTitle>{t.welcome_to_room}</DialogTitle>
           <DialogDescription>
-            Please enter your name to join the meeting. This name will be visible to other participants.
+            {t.name_prompt_description}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <Input
             id="name"
-            placeholder="Your name"
+            placeholder={t.your_name_placeholder}
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
@@ -54,7 +54,7 @@ export function NamePromptDialog({ isOpen, onNameSubmit, t }: NamePromptDialogPr
         </div>
         <DialogFooter>
           <Button type="submit" onClick={handleSubmit} disabled={!name.trim()}>
-            Join Meeting
+            {t.join_meeting_button}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -68,3 +68,5 @@ declare module '@radix-ui/react-dialog' {
         hideCloseButton?: boolean;
     }
 }
+
+    

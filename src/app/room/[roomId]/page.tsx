@@ -14,6 +14,7 @@ import {
   MessageSquare,
   PhoneOff,
   Users,
+  Loader,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -46,6 +47,7 @@ export default function RoomPage() {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [isNameModalOpen, setIsNameModalOpen] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const newSocket = io()
@@ -57,6 +59,9 @@ export default function RoomPage() {
 
     newSocket.on('update-participants', (participants: Participant[]) => {
       setParticipants(participants)
+      if (isLoading) {
+        setIsLoading(false);
+      }
     })
 
     newSocket.on('receive-message', (message: Omit<Message, 'isLocal'>) => {
@@ -70,13 +75,14 @@ export default function RoomPage() {
     return () => {
       newSocket.disconnect()
     }
-  }, [roomId])
+  }, [roomId, isLoading])
 
   const handleNameSubmit = (name: string) => {
     if (socket) {
       setUserName(name)
       socket.emit('join-room', { roomId, name, id: socket.id })
       setIsNameModalOpen(false);
+      // We don't set isLoading to false here, we wait for the first 'update-participants' event
     }
   }
 
@@ -107,6 +113,15 @@ export default function RoomPage() {
   
   if (isNameModalOpen) {
     return <NamePromptDialog isOpen={isNameModalOpen} onNameSubmit={handleNameSubmit} t={t} />;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-screen w-full items-center justify-center bg-background text-foreground gap-4">
+        <Loader className="h-12 w-12 animate-spin text-primary" />
+        <p className="text-muted-foreground">正在加入会议室，请稍候...</p>
+      </div>
+    );
   }
 
   return (
@@ -232,3 +247,5 @@ export default function RoomPage() {
     </TooltipProvider>
   )
 }
+
+    

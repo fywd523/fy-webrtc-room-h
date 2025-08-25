@@ -26,6 +26,11 @@ export const translations = {
     screen_sharing: 'Sharing Screen',
     type_message_placeholder: 'Type a message...',
     you: 'You',
+    welcome_to_room: 'Welcome to the Room',
+    name_prompt_description: 'Please enter your name to join the meeting. This name will be visible to other participants.',
+    your_name_placeholder: 'Your name',
+    join_meeting_button: 'Join Meeting',
+    joining_meeting_loading: 'Joining the meeting, please wait...',
   },
   zh: {
     appName: 'ConnectWave',
@@ -54,7 +59,14 @@ export const translations = {
     screen_sharing: '正在共享屏幕',
     type_message_placeholder: '输入消息...',
     you: '你',
+    welcome_to_room: '欢迎加入会议室',
+    name_prompt_description: '请输入您的名字以加入会议。这个名字将会对其他参会者可见。',
+    your_name_placeholder: '您的名字',
+    join_meeting_button: '加入会议',
+    joining_meeting_loading: '正在加入会议室，请稍候...',
   },
 }
 
 export type Translations = typeof translations.en;
+
+    
