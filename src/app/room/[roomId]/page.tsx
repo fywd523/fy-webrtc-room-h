@@ -31,6 +31,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import io, { Socket } from 'socket.io-client'
+import { cn } from '@/lib/utils'
 
 
 interface Participant {
@@ -173,20 +174,35 @@ export default function RoomPage() {
               </SheetHeader>
               <ScrollArea className="flex-1 -mx-6">
                 <div className="px-6 py-4 space-y-4">
-                  {messages.map((msg) => (
-                    <div key={msg.id} className="flex gap-3">
-                      <Avatar>
-                         <AvatarFallback>{msg.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                          <div className="flex items-baseline gap-2">
-                            <p className="font-semibold text-sm">{msg.senderId === socket?.id ? t.you : msg.name}</p>
-                            <p className="text-xs text-muted-foreground">{msg.timestamp}</p>
-                          </div>
-                          <p className="text-sm bg-muted p-2 rounded-lg mt-1">{msg.text}</p>
+                  {messages.map((msg) => {
+                    const isMyMessage = msg.senderId === socket?.id;
+                    return (
+                      <div key={msg.id} className={cn("flex gap-3", isMyMessage && "justify-end")}>
+                        {!isMyMessage && (
+                           <Avatar>
+                             <AvatarFallback>{msg.name.charAt(0)}</AvatarFallback>
+                           </Avatar>
+                        )}
+                        <div className={cn("flex-1", isMyMessage && "flex-grow-0")}>
+                            <div className={cn("flex items-baseline gap-2", isMyMessage && "justify-end")}>
+                              <p className="font-semibold text-sm">{isMyMessage ? t.you : msg.name}</p>
+                              <p className="text-xs text-muted-foreground">{msg.timestamp}</p>
+                            </div>
+                            <div className={cn(
+                              "text-sm p-2 rounded-lg mt-1 break-words",
+                              isMyMessage ? "bg-primary text-primary-foreground" : "bg-muted"
+                            )}>
+                              {msg.text}
+                            </div>
+                        </div>
+                         {isMyMessage && (
+                           <Avatar>
+                             <AvatarFallback>{msg.name.charAt(0)}</AvatarFallback>
+                           </Avatar>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </ScrollArea>
               <div className="mt-auto bg-background pb-2">
