@@ -177,29 +177,22 @@ export default function RoomPage() {
                   {messages.map((msg) => {
                     const isMyMessage = msg.senderId === socket?.id;
                     return (
-                      <div key={msg.id} className={cn("flex gap-3", isMyMessage && "justify-end")}>
-                        {!isMyMessage && (
-                           <Avatar>
-                             <AvatarFallback>{msg.name.charAt(0)}</AvatarFallback>
-                           </Avatar>
-                        )}
-                        <div className={cn("flex-1", isMyMessage && "flex-grow-0")}>
-                            <div className={cn("flex items-baseline gap-2", isMyMessage && "justify-end")}>
-                              <p className="font-semibold text-sm">{isMyMessage ? t.you : msg.name}</p>
-                              <p className="text-xs text-muted-foreground">{msg.timestamp}</p>
-                            </div>
+                      <div key={msg.id} className={cn("flex flex-col w-full", isMyMessage ? "items-end" : "items-start")}>
+                         <div className={cn("flex items-baseline gap-2", isMyMessage && "justify-end")}>
+                            <p className="text-xs text-muted-foreground">{isMyMessage ? t.you : msg.name}</p>
+                            <p className="text-xs text-muted-foreground">{msg.timestamp}</p>
+                          </div>
+                          <div className={cn("mt-1 flex items-end gap-2", isMyMessage && "flex-row-reverse")}>
+                            <Avatar className="h-8 w-8">
+                              <AvatarFallback>{msg.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
                             <div className={cn(
-                              "text-sm p-2 rounded-lg mt-1 break-words",
+                              "text-sm p-2 rounded-lg break-words max-w-[75%]",
                               isMyMessage ? "bg-primary text-primary-foreground" : "bg-muted"
                             )}>
                               {msg.text}
                             </div>
                         </div>
-                         {isMyMessage && (
-                           <Avatar>
-                             <AvatarFallback>{msg.name.charAt(0)}</AvatarFallback>
-                           </Avatar>
-                        )}
                       </div>
                     )
                   })}
