@@ -20,20 +20,17 @@ type ChatPanelProps = {
   messages: Message[];
   onSendMessage: (text: string) => void;
   t: Translations;
+  userName: string;
 };
 
-export function ChatPanel({ isOpen, onOpenChange, messages, onSendMessage, t }: ChatPanelProps) {
+export function ChatPanel({ isOpen, onOpenChange, messages, onSendMessage, t, userName }: ChatPanelProps) {
   const [newMessage, setNewMessage] = useState('');
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const scrollAreaViewport = useRef<HTMLDivElement>(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
   useEffect(() => {
-    if (scrollAreaRef.current) {
-        // A bit of a hacky way to get the viewport, but it works with shadcn's ScrollArea
-        const viewport = scrollAreaRef.current.querySelector('div');
-        if (viewport) {
-            viewport.scrollTop = viewport.scrollHeight;
-        }
+    if (scrollAreaViewport.current) {
+        scrollAreaViewport.current.scrollTop = scrollAreaViewport.current.scrollHeight;
     }
   }, [messages]);
 
@@ -55,21 +52,21 @@ export function ChatPanel({ isOpen, onOpenChange, messages, onSendMessage, t }: 
         <SheetHeader>
           <SheetTitle>{t.chat}</SheetTitle>
         </SheetHeader>
-        <ScrollArea className="flex-1 -mx-6">
+        <ScrollArea className="flex-1 -mx-6" viewportRef={scrollAreaViewport}>
             <div className="px-6 py-4 space-y-4">
                 {messages.map((msg) => (
                     <div key={msg.id} className={cn("flex w-full", msg.isLocal ? "justify-end" : "justify-start")}>
-                        <div className="flex flex-col">
-                            <div className={cn("flex items-baseline gap-2", msg.isLocal && "flex-row-reverse")}>
-                                <p className="text-xs text-muted-foreground">{msg.isLocal ? t.you : msg.senderName}</p>
+                        <div className="flex flex-col max-w-[80%]">
+                           <div className={cn("flex items-baseline gap-2", msg.isLocal && "flex-row-reverse")}>
+                                <p className="text-xs text-muted-foreground">{msg.isLocal ? userName : msg.senderName}</p>
                                 <p className="text-xs text-muted-foreground">{msg.timestamp}</p>
                             </div>
                             <div className={cn("mt-1 flex items-end gap-2", msg.isLocal && "flex-row-reverse")}>
                                 <Avatar className="h-8 w-8">
-                                <AvatarFallback>{msg.senderName.charAt(0)}</AvatarFallback>
+                                <AvatarFallback>{(msg.isLocal ? userName : msg.senderName).charAt(0)}</AvatarFallback>
                                 </Avatar>
                                 <div className={cn(
-                                "max-w-[75%] break-words rounded-lg p-3 text-sm",
+                                "break-words rounded-lg p-3 text-sm",
                                 msg.isLocal
                                     ? "bg-primary text-primary-foreground"
                                     : "bg-muted border"
@@ -109,3 +106,5 @@ export function ChatPanel({ isOpen, onOpenChange, messages, onSendMessage, t }: 
     </Sheet>
   );
 }
+
+    

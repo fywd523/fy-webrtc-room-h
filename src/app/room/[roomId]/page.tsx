@@ -63,10 +63,12 @@ export default function RoomPage() {
   const peerConnections = useRef<Record<string, RTCPeerConnection>>({});
 
   const createPeerConnection = useCallback((peerId: string) => {
+    console.log(`Creating peer connection to ${peerId}`);
     const pc = new RTCPeerConnection(ICE_SERVERS);
 
     pc.onicecandidate = (event) => {
       if (event.candidate && socketRef.current) {
+        console.log(`Sending ICE candidate to ${peerId}`);
         socketRef.current.emit('webrtc-ice-candidate', {
           to: peerId,
           candidate: event.candidate,
@@ -80,6 +82,7 @@ export default function RoomPage() {
     };
     
     localStream?.getTracks().forEach(track => {
+      console.log('Adding local track to PC');
       pc.addTrack(track, localStream);
     });
 
@@ -94,38 +97,58 @@ export default function RoomPage() {
       setIsLoading(false);
       return;
     }
-    if (!userName) {
+    if (userName !== urlName) {
         setUserName(urlName)
+    }
+
+    // Initialize local stream (camera)
+    if (!localStream) {
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+            .then(stream => {
+                setLocalStream(stream);
+            })
+            .catch(error => {
+                console.error("Error accessing media devices.", error);
+                toast({ variant: 'destructive', title: 'Media access failed', description: 'Could not access camera and microphone.'})
+            });
     }
 
     const socket = io()
     socketRef.current = socket
 
-    socket.on('connect', () => {
-      console.log('connected to socket server', socket.id)
-       if (urlName) {
+    const handleConnect = () => {
+      console.log('Connected to socket server with id:', socket.id)
+       if (urlName && socket.id) {
+         console.log(`Emitting join-room for ${urlName} in ${roomId}`)
          socket.emit('join-room', { roomId, name: urlName, id: socket.id });
        }
-    })
+    }
 
-    socket.on('update-participants', (updatedParticipants: Participant[]) => {
+    const handleUpdateParticipants = (updatedParticipants: Participant[]) => {
+      console.log('Received updated participants list:', updatedParticipants)
       const newParticipants = updatedParticipants.filter(p => p.id !== socket.id);
-
+      
+      // Create new peer connections
       newParticipants.forEach(p => {
         if (!peerConnections.current[p.id]) {
           const pc = createPeerConnection(p.id);
+          // Create and send offer
           pc.createOffer()
             .then(offer => pc.setLocalDescription(offer))
             .then(() => {
-              socket.emit('webrtc-offer', { to: p.id, offer: pc.localDescription });
+              if (socketRef.current && pc.localDescription) {
+                console.log(`Sending webrtc offer to ${p.id}`);
+                socketRef.current.emit('webrtc-offer', { to: p.id, offer: pc.localDescription });
+              }
             });
         }
       });
       
-      const oldParticipantIds = Object.keys(peerConnections.current);
+      // Clean up old peer connections
       const newParticipantIds = newParticipants.map(p => p.id);
-      oldParticipantIds.forEach(id => {
+      Object.keys(peerConnections.current).forEach(id => {
         if (!newParticipantIds.includes(id)) {
+          console.log(`Closing peer connection to ${id}`);
           peerConnections.current[id].close();
           delete peerConnections.current[id];
         }
@@ -133,53 +156,75 @@ export default function RoomPage() {
 
       setParticipants(updatedParticipants);
       if (isLoading) setIsLoading(false);
-    })
+    }
 
-    socket.on('webrtc-offer', async ({ from, offer }) => {
+    const handleWebRtcOffer = async ({ from, offer }: { from: string, offer: RTCSessionDescriptionInit }) => {
       console.log(`Received webrtc offer from ${from}`);
       const pc = createPeerConnection(from);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      socket.emit('webrtc-answer', { to: from, answer });
-    });
+      if (socketRef.current) {
+        socketRef.current.emit('webrtc-answer', { to: from, answer });
+      }
+    };
 
-    socket.on('webrtc-answer', ({ from, answer }) => {
+    const handleWebRtcAnswer = ({ from, answer }: { from: string, answer: RTCSessionDescriptionInit }) => {
        console.log(`Received webrtc answer from ${from}`);
       const pc = peerConnections.current[from];
       if (pc) {
         pc.setRemoteDescription(new RTCSessionDescription(answer));
       }
-    });
+    };
 
-    socket.on('webrtc-ice-candidate', ({ from, candidate }) => {
+    const handleWebRtcIceCandidate = ({ from, candidate }: { from: string, candidate: RTCIceCandidateInit }) => {
        console.log(`Received webrtc ice candidate from ${from}`);
       const pc = peerConnections.current[from];
       if (pc) {
         pc.addIceCandidate(new RTCIceCandidate(candidate));
       }
-    });
+    };
 
-    socket.on('receive-message', (message: Omit<Message, 'isLocal'>) => {
+    const handleReceiveMessage = (message: Omit<Message, 'isLocal'>) => {
         setMessages(prev => [...prev, {...message, isLocal: false}])
-    })
+    }
 
-    socket.on('update-messages', (history: Omit<Message, 'isLocal'>[]) => {
+    const handleUpdateMessages = (history: Omit<Message, 'isLocal'>[]) => {
         setMessages(history.map(msg => ({...msg, isLocal: msg.senderId === socket.id})));
-    });
+    };
     
-    socket.on('disconnect', () => {
+    const handleDisconnect = () => {
         console.log('Disconnected from server');
         Object.values(peerConnections.current).forEach(pc => pc.close());
         peerConnections.current = {};
-    });
+    };
 
+    if (localStream) {
+        socket.on('connect', handleConnect);
+        socket.on('update-participants', handleUpdateParticipants)
+        socket.on('webrtc-offer', handleWebRtcOffer);
+        socket.on('webrtc-answer', handleWebRtcAnswer);
+        socket.on('webrtc-ice-candidate', handleWebRtcIceCandidate);
+        socket.on('receive-message', handleReceiveMessage)
+        socket.on('update-messages', handleUpdateMessages);
+        socket.on('disconnect', handleDisconnect);
+    }
+  
     return () => {
-      socket.disconnect()
+      console.log('Cleaning up room page effects');
+      socket.off('connect', handleConnect);
+      socket.off('update-participants', handleUpdateParticipants)
+      socket.off('webrtc-offer', handleWebRtcOffer);
+      socket.off('webrtc-answer', handleWebRtcAnswer);
+      socket.off('webrtc-ice-candidate', handleWebRtcIceCandidate);
+      socket.off('receive-message', handleReceiveMessage);
+      socket.off('update-messages', handleUpdateMessages);
+      socket.off('disconnect', handleDisconnect);
+      socket.disconnect();
       localStream?.getTracks().forEach(track => track.stop());
       Object.values(peerConnections.current).forEach(pc => pc.close());
     }
-  }, [roomId, urlName, createPeerConnection, isLoading, localStream]);
+  }, [roomId, urlName, userName, createPeerConnection, isLoading, localStream, toast]);
   
 
   const handleNameSubmit = (name: string) => {
@@ -205,29 +250,56 @@ export default function RoomPage() {
     if (!isSharingScreen) {
         try {
             const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-            setLocalStream(stream);
+            
+            // Handle user stopping share from browser UI
             stream.getTracks()[0].onended = () => {
-                if (socketRef.current && isSharingScreen) {
+                if (socketRef.current) {
                    toggleScreenShare(); // Call again to stop sharing
                 }
             };
-            socket.emit('start-sharing', { roomId, id: socket.id });
+
+            setLocalStream(stream);
             setIsSharingScreen(true);
+            socket.emit('start-sharing', { roomId, id: socket.id });
+
+            // Replace track for all peers
+            const videoTrack = stream.getVideoTracks()[0];
+            Object.values(peerConnections.current).forEach(pc => {
+                const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+                if (sender) {
+                    sender.replaceTrack(videoTrack);
+                }
+            });
+
         } catch (error) {
             console.error('Error sharing screen:', error);
             toast({ variant: 'destructive', title: 'Could not share screen' });
         }
     } else {
         socket.emit('stop-sharing', { roomId, id: socket.id });
+        
+        // Stop screen share tracks
         localStream?.getTracks().forEach(track => track.stop());
-        setLocalStream(null);
+
+        // Revert to camera stream
+        const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        setLocalStream(cameraStream);
         setIsSharingScreen(false);
+
+        // Replace track for all peers
+        const videoTrack = cameraStream.getVideoTracks()[0];
+        Object.values(peerConnections.current).forEach(pc => {
+            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+            if (sender) {
+                sender.replaceTrack(videoTrack);
+            }
+        });
     }
   }
 
   const handleSendMessage = (text: string) => {
       const socket = socketRef.current;
-      if (text && socket) {
+      if (text && socket?.id) {
           const message: Omit<Message, 'isLocal'> = {
               id: Date.now().toString(),
               senderId: socket.id,
@@ -256,7 +328,10 @@ export default function RoomPage() {
     return <NamePromptDialog isOpen={isNameModalOpen} onNameSubmit={handleNameSubmit} t={t} />;
   }
   
-  const mainSpeakerStream = mainSpeaker?.isSharingScreen ? (mainSpeaker.id === socketRef.current?.id ? localStream : remoteStreams[mainSpeaker.id]) : null;
+  const mainSpeakerStream = mainSpeaker?.isSharingScreen 
+      ? (mainSpeaker.id === socketRef.current?.id ? localStream : remoteStreams[mainSpeaker.id]) 
+      : (mainSpeaker?.id === socketRef.current?.id ? localStream : remoteStreams[mainSpeaker?.id]);
+
 
   return (
     <TooltipProvider>
@@ -285,12 +360,20 @@ export default function RoomPage() {
                           muted={mainSpeaker.id === socketRef.current?.id}
                         />
                     ) : (
-                        <Image src={`https://placehold.co/1280x720.png`} alt={mainSpeaker.name} layout="fill" objectFit="cover" data-ai-hint="person talking" />
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Loader className="h-12 w-12 animate-spin text-primary" />
+                        </div>
                     )}
                     <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg text-sm font-medium">{mainSpeaker.name} {mainSpeaker.id === socketRef.current?.id && '(You)'} {mainSpeaker.isSharingScreen && `(${t.screen_sharing})`}</div>
                 </div>
              )}
              <div className="flex gap-4 h-32 md:h-40 shrink-0">
+                  {/* Local Video Thumbnail */}
+                  <div className="relative aspect-video h-full rounded-lg overflow-hidden bg-card border shadow-md">
+                    {localStream && <video ref={localVideoRef} className="w-full h-full object-cover" autoPlay muted />}
+                    <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium">{userName} (You)</div>
+                  </div>
+
                  {otherParticipants.map((p) => {
                    const remoteStream = remoteStreams[p.id];
                    return (
@@ -298,9 +381,11 @@ export default function RoomPage() {
                           {remoteStream ? (
                             <video ref={el => { if (el) el.srcObject = remoteStream }} className="w-full h-full object-cover" autoPlay />
                           ) : (
-                            <Image src={`https://placehold.co/320x180.png`} alt={p.name} layout="fill" objectFit="cover" data-ai-hint="person portrait" />
+                            <div className="w-full h-full flex items-center justify-center">
+                                <Loader className="h-8 w-8 animate-spin text-primary" />
+                            </div>
                           )}
-                           <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium">{p.name} {p.id === socketRef.current?.id && '(You)'}</div>
+                           <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium">{p.name}</div>
                            <div className="absolute top-2 right-2 bg-black/50 p-1 rounded-full">
                               {p.isMuted ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-white" />}
                            </div>
@@ -321,6 +406,7 @@ export default function RoomPage() {
             messages={messages}
             onSendMessage={handleSendMessage}
             t={t}
+            userName={userName}
           />
 
         </main>
@@ -397,3 +483,5 @@ export default function RoomPage() {
     </TooltipProvider>
   )
 }
+
+    
