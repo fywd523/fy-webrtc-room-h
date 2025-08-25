@@ -178,7 +178,7 @@ export default function RoomPage() {
                     const isMyMessage = msg.senderId === socket?.id;
                     return (
                       <div key={msg.id} className={cn("flex flex-col w-full", isMyMessage ? "items-end" : "items-start")}>
-                         <div className={cn("flex items-baseline gap-2", isMyMessage && "justify-end")}>
+                         <div className={cn("flex items-baseline gap-2", isMyMessage && "flex-row-reverse")}>
                             <p className="text-xs text-muted-foreground">{isMyMessage ? t.you : msg.name}</p>
                             <p className="text-xs text-muted-foreground">{msg.timestamp}</p>
                           </div>
