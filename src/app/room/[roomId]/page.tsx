@@ -30,9 +30,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import io, { Socket } from 'socket.io-client'
+
 
 interface Participant {
-  id: number
+  id: string
   name: string
   isMuted: boolean
   isCameraOff: boolean
@@ -53,32 +55,34 @@ export default function RoomPage() {
   const { t } = useTranslation()
   const roomId = params.roomId as string
 
+  const [socket, setSocket] = useState<Socket | null>(null)
   const [isMuted, setIsMuted] = useState(false)
   const [isCameraOff, setIsCameraOff] = useState(false)
   const [isSharingScreen, setIsSharingScreen] = useState(false)
   const [isChatOpen, setIsChatOpen] = useState(false)
-
-  const [participants, setParticipants] = useState<Participant[]>([
-    { id: 1, name: 'You', isMuted: false, isCameraOff: false },
-    { id: 2, name: 'Alex', isMuted: true, isCameraOff: false },
-    { id: 3, name: 'Jordan', isMuted: false, isCameraOff: true },
-    { id: 4, name: 'Taylor', isMuted: false, isCameraOff: false },
-  ])
   
-  const [messages, setMessages] = useState<Message[]>([
-      {id: 1, name: "Alex", text: "Hey everyone!", timestamp: "10:30 AM"},
-      {id: 2, name: "Jordan", text: "Hi Alex! Glad you could make it.", timestamp: "10:31 AM"},
-  ])
+  const [participants, setParticipants] = useState<Participant[]>([])
+  const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
 
   useEffect(() => {
-    // Simulate someone starting to share their screen
-    const timer = setTimeout(() => {
-        setParticipants(prev => prev.map(p => p.id === 4 ? {...p, isSharingScreen: true} : p))
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [])
+    const newSocket = io()
+    setSocket(newSocket)
 
+    newSocket.on('connect', () => {
+      console.log('connected to socket server', newSocket.id)
+      const name = prompt("Please enter your name") || "Anonymous"
+      newSocket.emit('join-room', { roomId, name, id: newSocket.id })
+    })
+
+    newSocket.on('update-participants', (participants: Participant[]) => {
+      setParticipants(participants)
+    })
+
+    return () => {
+      newSocket.disconnect()
+    }
+  }, [roomId])
 
   const copyRoomId = () => {
     navigator.clipboard.writeText(roomId)
@@ -101,8 +105,8 @@ export default function RoomPage() {
       }
   }
 
-  const mainSpeaker = participants.find(p => p.isSharingScreen) || participants[0];
-  const otherParticipants = participants.filter(p => p.id !== mainSpeaker.id);
+  const mainSpeaker = participants.find(p => p.isSharingScreen) || participants.find(p => p.id === socket?.id) || participants[0];
+  const otherParticipants = participants.filter(p => p.id !== mainSpeaker?.id);
 
   return (
     <TooltipProvider>
@@ -121,15 +125,17 @@ export default function RoomPage() {
 
         <main className="flex flex-1 overflow-hidden">
           <div className="flex flex-1 flex-col p-4 gap-4">
-             <div className="relative flex-1 w-full h-full rounded-lg overflow-hidden bg-card border shadow-md">
-                 <Image src={`https://placehold.co/1280x720.png`} alt={mainSpeaker.name} layout="fill" objectFit="cover" data-ai-hint={mainSpeaker.isSharingScreen ? "code screen" : "person talking"} />
-                 <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg text-sm font-medium">{mainSpeaker.name} {mainSpeaker.isSharingScreen && `(${t.screen_sharing})`}</div>
-             </div>
+             {mainSpeaker && (
+                <div className="relative flex-1 w-full h-full rounded-lg overflow-hidden bg-card border shadow-md">
+                    <Image src={`https://placehold.co/1280x720.png`} alt={mainSpeaker.name} layout="fill" objectFit="cover" data-ai-hint={mainSpeaker.isSharingScreen ? "code screen" : "person talking"} />
+                    <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg text-sm font-medium">{mainSpeaker.name} {mainSpeaker.id === socket?.id && '(You)'} {mainSpeaker.isSharingScreen && `(${t.screen_sharing})`}</div>
+                </div>
+             )}
              <div className="flex gap-4 h-32 md:h-40 shrink-0">
                  {otherParticipants.map((p) => (
                     <div key={p.id} className="relative aspect-video h-full rounded-lg overflow-hidden bg-card border shadow-md">
                         <Image src={`https://placehold.co/320x180.png`} alt={p.name} layout="fill" objectFit="cover" data-ai-hint="person portrait" />
-                         <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium">{p.name}</div>
+                         <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium">{p.name} {p.id === socket?.id && '(You)'}</div>
                          <div className="absolute top-2 right-2 bg-black/50 p-1 rounded-full">
                             {p.isMuted ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-white" />}
                          </div>
