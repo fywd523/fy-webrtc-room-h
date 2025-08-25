@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import {
   Copy,
@@ -33,12 +33,14 @@ import { NamePromptDialog } from '@/components/NamePromptDialog'
 export default function RoomPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
   const { t } = useTranslation()
   const roomId = params.roomId as string
+  const urlName = searchParams.get('name')
 
   const [socket, setSocket] = useState<Socket | null>(null)
-  const [userName, setUserName] = useState('')
+  const [userName, setUserName] = useState(urlName || '')
   const [isMuted, setIsMuted] = useState(false)
   const [isCameraOff, setIsCameraOff] = useState(false)
   const [isSharingScreen, setIsSharingScreen] = useState(false)
@@ -50,14 +52,24 @@ export default function RoomPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Show name prompt only after initial page load is complete
-    setIsNameModalOpen(true);
+    if (!urlName) {
+      setIsNameModalOpen(true);
+      setIsLoading(false);
+    }
 
     const newSocket = io()
     setSocket(newSocket)
 
+    if (urlName) {
+      setUserName(urlName);
+      newSocket.emit('join-room', { roomId, name: urlName, id: newSocket.id })
+    }
+
     newSocket.on('connect', () => {
       console.log('connected to socket server', newSocket.id)
+      if (userName) {
+        newSocket.emit('join-room', { roomId, name: userName, id: newSocket.id });
+      }
     })
 
     newSocket.on('update-participants', (participants: Participant[]) => {
@@ -78,10 +90,12 @@ export default function RoomPage() {
     return () => {
       newSocket.disconnect()
     }
-  }, [roomId, isLoading])
+  }, [roomId, urlName, isLoading, userName])
 
   const handleNameSubmit = (name: string) => {
     if (socket) {
+      const newUrl = `${window.location.pathname}?name=${encodeURIComponent(name)}`;
+      router.replace(newUrl, { scroll: false });
       setUserName(name)
       setIsLoading(true); // Start loading for joining room
       socket.emit('join-room', { roomId, name, id: socket.id })
@@ -114,7 +128,7 @@ export default function RoomPage() {
   const mainSpeaker = participants.find(p => p.isSharingScreen) || participants.find(p => p.id === socket?.id) || participants[0];
   const otherParticipants = participants.filter(p => p.id !== mainSpeaker?.id);
   
-  if (!isNameModalOpen || isLoading) {
+  if (isLoading) {
     return (
       <div className="flex flex-col h-screen w-full items-center justify-center bg-background text-foreground gap-4">
         <Loader className="h-12 w-12 animate-spin text-primary" />
@@ -250,3 +264,5 @@ export default function RoomPage() {
     </TooltipProvider>
   )
 }
+
+    
