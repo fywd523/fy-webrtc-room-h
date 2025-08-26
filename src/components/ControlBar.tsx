@@ -22,7 +22,7 @@ type ControlBarProps = {
   unreadMessages?: number;
 };
 
-const ControlButton = ({ tooltip, onClick, variant = "secondary", size = "lg", className, children }: { tooltip: string, onClick: () => void, variant?: "default" | "secondary" | "destructive", size?: "lg" | "icon", className?: string, children: React.ReactNode }) => (
+const ControlButton = ({ tooltip, onClick, variant = "secondary", size = "lg", className, children }: { tooltip: string, onClick: () => void, variant?: "default" | "secondary" | "destructive" | "outline" | "ghost" | "link" | null | undefined, size?: "default" | "sm" | "lg" | "icon" | null | undefined, className?: string, children: React.ReactNode }) => (
   <Tooltip>
     <TooltipTrigger asChild>
       <Button variant={variant} size={size} className={cn("rounded-full w-14 h-14", className)} onClick={onClick}>
@@ -73,12 +73,12 @@ export function ControlBar({
 
           <div className="w-4 md:w-8" />
 
-          <ControlButton tooltip={t.invite_participants} onClick={onInvite}>
+          <ControlButton tooltip={t.invite_participants} onClick={onInvite} variant="secondary">
             <UserPlus className="h-6 w-6" />
           </ControlButton>
 
           <div className="relative">
-            <ControlButton tooltip={t.chat} onClick={onToggleChat}>
+            <ControlButton tooltip={t.chat} onClick={onToggleChat} variant="secondary">
               <MessageSquare className="h-6 w-6" />
             </ControlButton>
             {unreadMessages > 0 && (
@@ -86,7 +86,7 @@ export function ControlBar({
             )}
           </div>
 
-          <ControlButton tooltip={t.settings} onClick={onOpenSettings}>
+          <ControlButton tooltip={t.settings} onClick={onOpenSettings} variant="secondary">
             <Settings className="h-6 w-6" />
           </ControlButton>
         </div>
