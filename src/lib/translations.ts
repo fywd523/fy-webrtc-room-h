@@ -64,6 +64,9 @@ See you there!
       purple: 'Purple',
       orange: 'Orange',
     },
+    media_access_failed_title: 'Media access failed',
+    media_access_failed_description: 'Could not access camera and microphone.',
+    screen_share_failed_title: 'Could not share screen',
   },
   zh: {
     appName: 'ConnectWave',
@@ -129,7 +132,12 @@ See you there!
       purple: '优雅紫',
       orange: '阳光橙',
     },
+    media_access_failed_title: '媒体访问失败',
+    media_access_failed_description: '无法访问摄像头和麦克风。',
+    screen_share_failed_title: '无法共享屏幕',
   },
 }
 
 export type Translations = typeof translations.en;
+
+    

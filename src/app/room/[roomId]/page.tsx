@@ -302,7 +302,11 @@ export default function RoomPage() {
       return stream;
     } catch (error) {
       console.error("Error accessing media devices.", error);
-      toast({ variant: 'destructive', title: 'Media access failed', description: 'Could not access camera and microphone.' });
+      toast({ 
+        variant: 'destructive', 
+        title: t.media_access_failed_title, 
+        description: t.media_access_failed_description 
+      });
       return null;
     }
   };
@@ -463,7 +467,7 @@ export default function RoomPage() {
 
         } catch (error) {
             console.error('Error sharing screen:', error);
-            toast({ variant: 'destructive', title: 'Could not share screen' });
+            toast({ variant: 'destructive', title: t.screen_share_failed_title });
         }
     } else {
         socket.emit('stop-sharing', { roomId, id: socket.id });
@@ -685,3 +689,5 @@ export default function RoomPage() {
       </div>
   )
 }
+
+    
