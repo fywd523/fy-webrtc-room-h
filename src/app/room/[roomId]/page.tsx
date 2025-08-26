@@ -57,6 +57,11 @@ export default function RoomPage() {
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const peerConnections = useRef<Record<string, RTCPeerConnection>>({});
 
+  const [mediaConstraints, setMediaConstraints] = useState<MediaStreamConstraints>({
+    video: true,
+    audio: true,
+  });
+
   const createPeerConnection = useCallback((peerId: string): RTCPeerConnection => {
     console.log(`Creating peer connection to ${peerId}`);
     // Close existing connection if any
@@ -288,7 +293,12 @@ export default function RoomPage() {
 
   const setupStream = async (constraints: MediaStreamConstraints): Promise<MediaStream | null> => {
     try {
+      // stop previous stream
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      setLocalStream(stream);
       return stream;
     } catch (error) {
       console.error("Error accessing media devices.", error);
@@ -296,16 +306,34 @@ export default function RoomPage() {
       return null;
     }
   };
+
+  useEffect(() => {
+    // Initial stream setup
+    if(userName && !localStream) {
+        setupStream(mediaConstraints).then(stream => {
+            if (stream) {
+                const audioTrack = stream.getAudioTracks()[0];
+                if (audioTrack) {
+                  audioTrack.enabled = !isMuted;
+                }
+                const videoTrack = stream.getVideoTracks()[0];
+                if (videoTrack) {
+                  videoTrack.enabled = !isCameraOff;
+                }
+            }
+        });
+    }
+  }, [userName]);
   
   const toggleAudio = async () => {
     let stream = localStream;
     if (!stream) {
-      stream = await setupStream({ video: !isCameraOff, audio: true });
+      stream = await setupStream({ ...mediaConstraints, audio: true });
       if (stream) {
-        setLocalStream(stream);
-      } else {
-        return;
+         setIsMuted(false);
+         return;
       }
+      return;
     }
 
     const audioTrack = stream.getAudioTracks()[0];
@@ -318,12 +346,12 @@ export default function RoomPage() {
   const toggleVideo = async () => {
     let stream = localStream;
     if (!stream) {
-      stream = await setupStream({ video: true, audio: !isMuted });
+      stream = await setupStream({ ...mediaConstraints, video: true });
        if (stream) {
-         setLocalStream(stream);
-       } else {
+         setIsCameraOff(false);
          return;
        }
+       return;
     }
 
     const videoTrack = stream.getVideoTracks()[0];
@@ -442,11 +470,15 @@ export default function RoomPage() {
         
         localStream?.getTracks().forEach(track => track.stop());
         setIsSharingScreen(false);
-        setLocalStream(null);
-        setIsCameraOff(true);
+        const newStream = await setupStream(mediaConstraints);
+        if (newStream) {
+            const videoTrack = newStream.getVideoTracks()[0];
+            if (videoTrack) videoTrack.enabled = !isCameraOff;
+            const audioTrack = newStream.getAudioTracks()[0];
+            if (audioTrack) audioTrack.enabled = !isMuted;
+        }
 
-        // 关键修复：重新协商移除视频流
-        await handleStreamChange(null);
+        await handleStreamChange(newStream);
     }
   }
 
@@ -479,6 +511,23 @@ export default function RoomPage() {
       title: t.invitation_copied_title,
       description: t.invitation_copied_description,
     });
+  };
+
+  const handleMediaDeviceChange = async (kind: 'audio' | 'video', deviceId: string) => {
+    const newConstraints = { ...mediaConstraints };
+    if (kind === 'video') {
+      newConstraints.video = { deviceId: { exact: deviceId } };
+    } else {
+      newConstraints.audio = { deviceId: { exact: deviceId } };
+    }
+    setMediaConstraints(newConstraints);
+
+    if(!isSharingScreen) {
+        const newStream = await setupStream(newConstraints);
+        if (newStream) {
+            await handleStreamChange(newStream);
+        }
+    }
   };
 
   const selfId = socketRef.current?.id;
@@ -514,6 +563,8 @@ export default function RoomPage() {
     useEffect(() => {
         if (videoRef.current && stream) {
             videoRef.current.srcObject = stream;
+        } else if (videoRef.current) {
+            videoRef.current.srcObject = null;
         }
     }, [stream]);
 
@@ -521,7 +572,7 @@ export default function RoomPage() {
 
     return (
         <div className="relative aspect-video h-full rounded-lg overflow-hidden bg-card border shadow-md">
-            {stream && !isCameraOff ? (
+            {stream && (isLocal ? !isCameraOff : !participant.isCameraOff) ? (
                 <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted={isLocal} />
             ) : (
                 <div className="w-full h-full flex items-center justify-center bg-muted">
@@ -552,7 +603,7 @@ export default function RoomPage() {
           <div className="flex flex-1 flex-col p-4 gap-4">
              {mainSpeaker ? (
                 <div className="relative flex-1 w-full h-full rounded-lg overflow-hidden bg-card border shadow-md">
-                    {mainSpeakerStream ? (
+                    {mainSpeakerStream && !mainSpeaker.isCameraOff ? (
                          <video 
                           ref={el => { if (el && el.srcObject !== mainSpeakerStream) el.srcObject = mainSpeakerStream }} 
                           className="w-full h-full object-contain" 
@@ -616,6 +667,7 @@ export default function RoomPage() {
             isOpen={isSettingsOpen} 
             onOpenChange={setIsSettingsOpen} 
             localStream={localStream}
+            onMediaDeviceChange={handleMediaDeviceChange}
         />
         <ControlBar
           isMuted={isMuted}

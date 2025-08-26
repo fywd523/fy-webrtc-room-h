@@ -10,17 +10,19 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Button } from './ui/button'
 import { useTranslation } from '@/hooks/use-translation'
 import { Camera, Mic, Monitor, Palette } from 'lucide-react'
-import { Card, CardContent } from './ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Progress } from './ui/progress'
 import { cn } from '@/lib/utils'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
+import { Label } from './ui/label'
 
 interface SettingsDialogProps {
   isOpen: boolean
   onOpenChange: (isOpen: boolean) => void
   localStream: MediaStream | null
+  onMediaDeviceChange: (kind: 'audio' | 'video', deviceId: string) => void
 }
 
 const themes = [
@@ -31,43 +33,92 @@ const themes = [
     { name: 'Orange', primary: '25 95% 53%', accent: '25 89% 48%', bg: '30 89% 96%'},
 ];
 
-export function SettingsDialog({ isOpen, onOpenChange, localStream }: SettingsDialogProps) {
+export function SettingsDialog({ isOpen, onOpenChange, localStream, onMediaDeviceChange }: SettingsDialogProps) {
   const { t } = useTranslation()
   const videoRef = useRef<HTMLVideoElement>(null)
   const [audioLevel, setAudioLevel] = useState(0);
   const [activeTheme, setActiveTheme] = useState(themes[0].name);
 
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  
+  const [selectedAudioDevice, setSelectedAudioDevice] = useState<string>('');
+  const [selectedVideoDevice, setSelectedVideoDevice] = useState<string>('');
+
+
+  const getDevices = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audio = devices.filter(device => device.kind === 'audioinput');
+        const video = devices.filter(device => device.kind === 'videoinput');
+        setAudioDevices(audio);
+        setVideoDevices(video);
+
+        if (localStream) {
+            const currentAudioId = localStream.getAudioTracks()[0]?.getSettings().deviceId;
+            const currentVideoId = localStream.getVideoTracks()[0]?.getSettings().deviceId;
+            if(currentAudioId) setSelectedAudioDevice(currentAudioId);
+            if(currentVideoId) setSelectedVideoDevice(currentVideoId);
+        } else {
+            if(audio.length > 0) setSelectedAudioDevice(audio[0].deviceId);
+            if(video.length > 0) setSelectedVideoDevice(video[0].deviceId);
+        }
+
+      } catch (error) {
+        console.error('Error enumerating devices:', error);
+      }
+  };
+
+
   useEffect(() => {
+    if (isOpen) {
+      getDevices();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    let audioContext: AudioContext | null = null;
+    let analyser: AnalyserNode | null = null;
+    let source: MediaStreamAudioSourceNode | null = null;
+    let animationFrameId: number;
+
     if (isOpen && localStream) {
       if (videoRef.current) {
         videoRef.current.srcObject = localStream
       }
+      
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioContext = new AudioContext();
+        analyser = audioContext.createAnalyser();
+        source = audioContext.createMediaStreamSource(localStream);
+        source.connect(analyser);
+        analyser.fftSize = 32;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
 
-      const audioContext = new AudioContext();
-      const analyser = audioContext.createAnalyser();
-      const source = audioContext.createMediaStreamSource(localStream);
-      source.connect(analyser);
-      analyser.fftSize = 32;
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-
-      let animationFrameId: number;
-
-      const updateAudioLevel = () => {
-        analyser.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((acc, val) => acc + val, 0) / bufferLength;
-        setAudioLevel(average);
-        animationFrameId = requestAnimationFrame(updateAudioLevel);
-      };
-
-      updateAudioLevel();
-
-      return () => {
-        cancelAnimationFrame(animationFrameId);
-        source.disconnect();
-        analyser.disconnect();
-      };
+        const updateAudioLevel = () => {
+            if(analyser) {
+                analyser.getByteFrequencyData(dataArray);
+                const average = dataArray.reduce((acc, val) => acc + val, 0) / bufferLength;
+                setAudioLevel(average * 2); // Scale for better visualization
+            }
+            animationFrameId = requestAnimationFrame(updateAudioLevel);
+        };
+        updateAudioLevel();
+      } else {
+        setAudioLevel(0);
+      }
+    } else {
+      setAudioLevel(0);
     }
+
+    return () => {
+        if(animationFrameId) cancelAnimationFrame(animationFrameId);
+        if(source) source.disconnect();
+        if(analyser) analyser.disconnect();
+        if(audioContext && audioContext.state !== 'closed') audioContext.close();
+    };
   }, [isOpen, localStream])
 
   const applyTheme = (theme: typeof themes[0]) => {
@@ -77,6 +128,16 @@ export function SettingsDialog({ isOpen, onOpenChange, localStream }: SettingsDi
     root.style.setProperty('--background', theme.bg);
     setActiveTheme(theme.name);
   };
+
+  const handleVideoDeviceChange = (deviceId: string) => {
+    setSelectedVideoDevice(deviceId);
+    onMediaDeviceChange('video', deviceId);
+  }
+
+  const handleAudioDeviceChange = (deviceId: string) => {
+    setSelectedAudioDevice(deviceId);
+    onMediaDeviceChange('audio', deviceId);
+  }
 
 
   return (
@@ -105,7 +166,7 @@ export function SettingsDialog({ isOpen, onOpenChange, localStream }: SettingsDi
                     <div className="flex flex-col items-center gap-4">
                          <div className="w-full aspect-video bg-muted rounded-lg overflow-hidden relative">
                              {localStream?.getVideoTracks().find(t => t.enabled) ? (
-                                <video ref={videoRef} autoPlay muted className="w-full h-full object-cover" />
+                                <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
                              ) : (
                                 <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground">
                                     <Camera className="h-16 w-16" />
@@ -113,12 +174,46 @@ export function SettingsDialog({ isOpen, onOpenChange, localStream }: SettingsDi
                                 </div>
                              )}
                          </div>
-                         <div className="w-full space-y-2">
-                            <div className="flex items-center gap-2">
-                                <Mic className="text-muted-foreground" />
-                                <p className="text-sm font-medium">Microphone Level</p>
+                         <div className="w-full space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="camera-select">Camera</Label>
+                                    <Select value={selectedVideoDevice} onValueChange={handleVideoDeviceChange}>
+                                        <SelectTrigger id="camera-select">
+                                            <SelectValue placeholder="Select a camera" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {videoDevices.map(device => (
+                                                <SelectItem key={device.deviceId} value={device.deviceId}>
+                                                    {device.label || `Camera ${videoDevices.indexOf(device) + 1}`}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="mic-select">Microphone</Label>
+                                     <Select value={selectedAudioDevice} onValueChange={handleAudioDeviceChange}>
+                                        <SelectTrigger id="mic-select">
+                                            <SelectValue placeholder="Select a microphone" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {audioDevices.map(device => (
+                                                <SelectItem key={device.deviceId} value={device.deviceId}>
+                                                    {device.label || `Microphone ${audioDevices.indexOf(device) + 1}`}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
-                            <Progress value={audioLevel} className="w-full" />
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <Mic className="text-muted-foreground" />
+                                    <p className="text-sm font-medium">Microphone Level</p>
+                                </div>
+                                <Progress value={audioLevel} className="w-full" />
+                            </div>
                          </div>
                     </div>
                 </CardContent>
