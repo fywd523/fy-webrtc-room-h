@@ -561,7 +561,7 @@ export default function RoomPage() {
   
   const mainSpeakerStream = getStreamForParticipant(mainSpeaker?.id);
 
-  const ParticipantVideo = ({ participant, stream, isMuted, isCameraOff, isLocal = false }: { participant: Participant | undefined, stream: MediaStream | null, isMuted: boolean, isCameraOff: boolean, isLocal?: boolean }) => {
+  const ParticipantVideo = ({ participant, stream, isMuted, isCameraOff, isLocal = false, className = '' }: { participant: Participant | undefined, stream: MediaStream | null, isMuted: boolean, isCameraOff: boolean, isLocal?: boolean, className?: string }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
 
     useEffect(() => {
@@ -575,12 +575,12 @@ export default function RoomPage() {
     if (!participant) return null;
 
     return (
-        <div className="relative aspect-video h-full rounded-lg overflow-hidden bg-card border shadow-md">
+        <div className={`relative aspect-video rounded-lg overflow-hidden bg-card border shadow-md ${className}`}>
             {stream && (isLocal ? !isCameraOff : !participant.isCameraOff) ? (
                 <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted={isLocal} />
             ) : (
                 <div className="w-full h-full flex items-center justify-center bg-muted">
-                    <VideoOff className="h-8 w-8 text-muted-foreground" />
+                    <VideoOff className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground" />
                 </div>
             )}
             <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium">{participant.name} {isLocal && `(${t.you})`}</div>
@@ -593,7 +593,7 @@ export default function RoomPage() {
       <div className="flex h-screen w-full flex-col bg-background text-foreground">
         <header className="flex h-16 items-center justify-between border-b px-4 shrink-0">
           <ConnectWaveLogo />
-          <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5">
+          <div className="hidden md:flex items-center gap-2 rounded-md bg-muted px-3 py-1.5">
             <Users className="h-5 w-5 text-muted-foreground" />
             <span className="font-mono text-sm font-semibold">{roomId}</span>
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={copyRoomId}>
@@ -604,7 +604,7 @@ export default function RoomPage() {
         </header>
 
         <main className="flex flex-1 overflow-hidden">
-          <div className="flex flex-1 flex-col p-4 gap-4">
+          <div className="flex flex-1 flex-col p-2 sm:p-4 gap-2 sm:gap-4">
              {mainSpeaker ? (
                 <div className="relative flex-1 w-full h-full rounded-lg overflow-hidden bg-card border shadow-md">
                     {mainSpeakerStream && !mainSpeaker.isCameraOff ? (
@@ -616,25 +616,25 @@ export default function RoomPage() {
                     ) : (
                         <div className="w-full h-full flex items-center justify-center">
                            <div className="text-center">
-                             <VideoOff className="h-16 w-16 mx-auto text-muted-foreground" />
+                             <VideoOff className="h-12 w-12 md:h-16 md:w-16 mx-auto text-muted-foreground" />
                               <p className="mt-2 text-muted-foreground">
                                 {mainSpeaker.name}'s video is off
                               </p>
                            </div>
                         </div>
                     )}
-                    <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg text-sm font-medium">{mainSpeaker.name} {mainSpeaker.id === selfId && `(${t.you})`} {mainSpeaker.isSharingScreen && `(${t.screen_sharing})`}</div>
+                    <div className="absolute bottom-2 left-2 md:bottom-4 md:left-4 bg-black/50 text-white px-3 py-1 rounded-lg text-sm font-medium">{mainSpeaker.name} {mainSpeaker.id === selfId && `(${t.you})`} {mainSpeaker.isSharingScreen && `(${t.screen_sharing})`}</div>
                 </div>
              ) : (
                 <div className="relative flex-1 w-full h-full rounded-lg overflow-hidden bg-card border shadow-md flex items-center justify-center">
-                    <div className="text-center">
-                        <Users className="h-16 w-16 mx-auto text-muted-foreground" />
+                    <div className="text-center p-4">
+                        <Users className="h-12 w-12 md:h-16 md:w-16 mx-auto text-muted-foreground" />
                         <p className="mt-2 text-muted-foreground">{t.welcome_to_room}</p>
                         <p className="text-sm text-muted-foreground">Invite others to join!</p>
                     </div>
                 </div>
              )}
-             <div className="flex gap-4 h-32 md:h-40 shrink-0">
+             <div className="flex gap-2 sm:gap-4 h-[100px] md:h-40 shrink-0">
                   {/* Local Video Thumbnail */}
                   {selfParticipant && (
                     <ParticipantVideo
@@ -643,6 +643,7 @@ export default function RoomPage() {
                         isMuted={isMuted}
                         isCameraOff={isCameraOff}
                         isLocal={true}
+                        className="w-1/3"
                     />
                   )}
                  {otherParticipants.map((p) => (
@@ -652,6 +653,7 @@ export default function RoomPage() {
                         stream={getStreamForParticipant(p.id)}
                         isMuted={p.isMuted}
                         isCameraOff={p.isCameraOff}
+                        className="w-1/3"
                     />
                  ))}
              </div>

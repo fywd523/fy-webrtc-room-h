@@ -66,8 +66,8 @@ export default function Home() {
                   <Video className="w-8 h-8" />
                 </div>
               </div>
-              <CardTitle className="font-headline text-3xl">{t.join_or_create_room}</CardTitle>
-              <CardDescription>{t.app_description}</CardDescription>
+              <CardTitle className="font-headline text-2xl md:text-3xl">{t.join_or_create_room}</CardTitle>
+              <CardDescription className="px-4">{t.app_description}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Button onClick={createRoom} className="w-full" size="lg">
