@@ -34,6 +34,7 @@ export const translations = {
     invite_participants: 'Invite Participants',
     invitation_copied_title: 'Invitation Copied!',
     invitation_copied_description: 'Meeting invitation has been copied to your clipboard.',
+    settings: 'Settings',
     invitation_message: `
 Hello!
 
@@ -81,6 +82,7 @@ See you there!
     invite_participants: '邀请参会者',
     invitation_copied_title: '已复制邀请信息！',
     invitation_copied_description: '会议邀请信息已复制到您的剪贴板。',
+    settings: '设置',
     invitation_message: `
 您好！
 

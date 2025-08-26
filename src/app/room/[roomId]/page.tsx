@@ -15,6 +15,7 @@ import {
   Users,
   Loader,
   UserPlus,
+  Settings,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -595,81 +596,90 @@ export default function RoomPage() {
 
         </main>
 
-        <footer className="flex h-20 items-center justify-center border-t bg-background/80 backdrop-blur-sm shrink-0">
-          <div className="flex items-center gap-2 md:gap-4">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={isMuted ? 'destructive' : 'secondary'}
-                  size="lg"
-                  className="rounded-full w-14 h-14"
-                  onClick={toggleAudio}
-                >
-                  {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{isMuted ? t.unmute : t.mute}</TooltipContent>
-            </Tooltip>
+        <footer className="flex h-20 items-center justify-between border-t bg-background/80 backdrop-blur-sm shrink-0 px-4 md:px-8">
+          <div className="flex items-center gap-2 md:gap-3">
+             <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={isMuted ? 'destructive' : 'secondary'}
+                    size="lg"
+                    className="rounded-full w-14 h-14"
+                    onClick={toggleAudio}
+                  >
+                    {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{isMuted ? t.unmute : t.mute}</TooltipContent>
+              </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={isCameraOff ? 'destructive' : 'secondary'}
-                  size="lg"
-                  className="rounded-full w-14 h-14"
-                  onClick={toggleVideo}
-                >
-                  {isCameraOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{isCameraOff ? t.start_video : t.stop_video}</TooltipContent>
-            </Tooltip>
-            
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="secondary" size="lg" className="rounded-full w-14 h-14" onClick={handleInvite}>
-                  <UserPlus className="h-6 w-6" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t.invite_participants}</TooltipContent>
-            </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={isCameraOff ? 'destructive' : 'secondary'}
+                    size="lg"
+                    className="rounded-full w-14 h-14"
+                    onClick={toggleVideo}
+                  >
+                    {isCameraOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{isCameraOff ? t.start_video : t.stop_video}</TooltipContent>
+              </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant={isSharingScreen ? "default" : "secondary"} size="lg" className="rounded-full w-14 h-14" onClick={toggleScreenShare}>
-                  {isSharingScreen ? <ScreenShareOff className="h-6 w-6" /> : <ScreenShare className="h-6 w-6" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{isSharingScreen ? t.stop_sharing : t.share_screen}</TooltipContent>
-            </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant={isSharingScreen ? "default" : "secondary"} size="lg" className="rounded-full w-14 h-14" onClick={toggleScreenShare}>
+                    {isSharingScreen ? <ScreenShareOff className="h-6 w-6" /> : <ScreenShare className="h-6 w-6" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{isSharingScreen ? t.stop_sharing : t.share_screen}</TooltipContent>
+              </Tooltip>
+          </div>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="secondary" size="lg" className="rounded-full w-14 h-14 relative" onClick={() => setIsChatOpen(true)}>
-                  <MessageSquare className="h-6 w-6" />
-                  {messages.filter(m => !m.isLocal).length > 0 && (
-                      <Badge variant="destructive" className="absolute -top-1 -right-1 p-1 h-5 w-5 flex items-center justify-center text-xs">!</Badge>
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t.chat}</TooltipContent>
-            </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="destructive"
+                size="lg"
+                className="rounded-full w-16 h-16"
+                onClick={() => router.push('/')}
+              >
+                <PhoneOff className="h-7 w-7" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t.leave_meeting}</TooltipContent>
+          </Tooltip>
 
-             <div className="w-8" />
-
+          <div className="flex items-center gap-2 md:gap-3">
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="destructive"
-                  size="lg"
-                  className="rounded-full w-16 h-16"
-                  onClick={() => router.push('/')}
-                >
-                  <PhoneOff className="h-7 w-7" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t.leave_meeting}</TooltipContent>
-            </Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="secondary" size="lg" className="rounded-full w-14 h-14" onClick={handleInvite}>
+                    <UserPlus className="h-6 w-6" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t.invite_participants}</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="secondary" size="lg" className="rounded-full w-14 h-14 relative" onClick={() => setIsChatOpen(true)}>
+                    <MessageSquare className="h-6 w-6" />
+                    {messages.filter(m => !m.isLocal).length > 0 && (
+                        <Badge variant="destructive" className="absolute -top-1 -right-1 p-1 h-5 w-5 flex items-center justify-center text-xs">!</Badge>
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t.chat}</TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="secondary" size="lg" className="rounded-full w-14 h-14" onClick={() => toast({ title: 'Settings coming soon!'})}>
+                    <Settings className="h-6 w-6" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t.settings}</TooltipContent>
+              </Tooltip>
           </div>
         </footer>
       </div>
