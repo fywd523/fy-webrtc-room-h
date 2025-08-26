@@ -306,23 +306,23 @@ export default function RoomPage() {
     }
   };
 
-  useEffect(() => {
-    // Initial stream setup
-    if(userName && !localStream) {
-        setupStream(mediaConstraints).then(stream => {
-            if (stream) {
-                const audioTrack = stream.getAudioTracks()[0];
-                if (audioTrack) {
-                  audioTrack.enabled = !isMuted;
-                }
-                const videoTrack = stream.getVideoTracks()[0];
-                if (videoTrack) {
-                  videoTrack.enabled = !isCameraOff;
-                }
-            }
-        });
-    }
-  }, [userName]);
+  // useEffect(() => {
+  //   // Initial stream setup
+  //   if(userName && !localStream) {
+  //       setupStream(mediaConstraints).then(stream => {
+  //           if (stream) {
+  //               const audioTrack = stream.getAudioTracks()[0];
+  //               if (audioTrack) {
+  //                 audioTrack.enabled = !isMuted;
+  //               }
+  //               const videoTrack = stream.getVideoTracks()[0];
+  //               if (videoTrack) {
+  //                 videoTrack.enabled = !isCameraOff;
+  //               }
+  //           }
+  //       });
+  //   }
+  // }, [userName]);
   
   const toggleAudio = async () => {
     let stream = localStream;
