@@ -379,61 +379,38 @@ export default function RoomPage() {
     })
   }
 
-  // 添加在 createPeerConnection 函数附近
-  const handleStreamChange = async (newStream: MediaStream | null) => {
-      const socket = socketRef.current;
-      if (!socket) return;
+  const replaceStreamInPeers = async (newStream: MediaStream | null) => {
+    for (const peerId in peerConnections.current) {
+        const pc = peerConnections.current[peerId];
+        if (!pc) continue;
 
-      // 获取所有其他参与者
-      const otherParticipants = participants.filter(p => p.id !== socket.id);
-      
-      for (const participant of otherParticipants) {
-          const peerId = participant.id;
-          let pc = peerConnections.current[peerId];
-          
-          if (!pc) {
-              // 如果不存在连接，创建新的
-              pc = createPeerConnection(peerId);
-          }
-          try {
-              if (newStream) {
-                  // 替换视频轨道
-                  const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
-                  const videoTrack = newStream.getVideoTracks()[0];
-                  
-                  if (videoSender && videoTrack) {
-                      await videoSender.replaceTrack(videoTrack);
-                  } else if (videoTrack) {
-                      pc.addTrack(videoTrack, newStream);
-                  }
+        const senders = pc.getSenders();
+        
+        // Handle video track
+        const videoTrack = newStream?.getVideoTracks()[0] || null;
+        const videoSender = senders.find(s => s.track?.kind === 'video');
+        if (videoSender) {
+            await videoSender.replaceTrack(videoTrack);
+        } else if (videoTrack && newStream) {
+            pc.addTrack(videoTrack, newStream);
+        }
 
-                  // 替换音频轨道（如果有）
-                  const audioSender = pc.getSenders().find(s => s.track?.kind === 'audio');
-                  const audioTrack = newStream.getAudioTracks()[0];
-                  
-                  if (audioSender && audioTrack) {
-                      await audioSender.replaceTrack(audioTrack);
-                  } else if (audioTrack) {
-                      pc.addTrack(audioTrack, newStream);
-                  }
-              } else {
-                  // 移除视频轨道
-                  const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
-                  if (videoSender) {
-                      await videoSender.replaceTrack(null);
-                  }
-              }
+        // Handle audio track
+        const audioTrack = newStream?.getAudioTracks()[0] || null;
+        const audioSender = senders.find(s => s.track?.kind === 'audio');
+        if (audioSender) {
+            await audioSender.replaceTrack(audioTrack);
+        } else if (audioTrack && newStream) {
+            pc.addTrack(audioTrack, newStream);
+        }
 
-              // 创建新的offer并发送给该参与者
-              const offer = await pc.createOffer();
-              await pc.setLocalDescription(offer);
-              socket.emit('webrtc-offer', { to: peerId, offer });
-
-          } catch (error) {
-              console.error(`Error handling stream change for ${peerId}:`, error);
-          }
-      }
-  }
+        // After replacing tracks, renegotiate if necessary
+        // This often involves creating a new offer
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socketRef.current?.emit('webrtc-offer', { to: peerId, offer: pc.localDescription });
+    }
+  };
   
   const toggleScreenShare = async () => {
     const socket = socketRef.current;
@@ -445,39 +422,50 @@ export default function RoomPage() {
                 video: true, 
                 audio: true 
             });
+
+            // Stop previous stream before starting a new one
+            localStream?.getTracks().forEach(track => track.stop());
             
             screenStream.getVideoTracks()[0].onended = () => {
-                if (socketRef.current && peerConnections.current && isSharingScreen) {
-                   toggleScreenShare();
+                // This event is fired when user stops sharing via browser's native UI
+                if (isSharingScreen) { // Check if we are still in sharing mode
+                    toggleScreenShare();
                 }
             };
             
-            setIsSharingScreen(true);
-            setIsCameraOff(true);
             setLocalStream(screenStream);
+            setIsSharingScreen(true);
+            setIsCameraOff(true); // Visually indicate camera is off, though it's the screen
             socket.emit('start-sharing', { roomId, id: socket.id });
-
-            // 关键修复：向所有参与者重新协商
-            await handleStreamChange(screenStream);
+            await replaceStreamInPeers(screenStream);
 
         } catch (error) {
             console.error('Error sharing screen:', error);
             toast({ variant: 'destructive', title: t.screen_share_failed_title });
+            // If screen share fails, restore camera stream
+            const cameraStream = await setupStream(mediaConstraints);
+            setLocalStream(cameraStream);
+            setIsSharingScreen(false);
         }
     } else {
         socket.emit('stop-sharing', { roomId, id: socket.id });
         
+        // Stop the screen sharing tracks
         localStream?.getTracks().forEach(track => track.stop());
+        
         setIsSharingScreen(false);
-        const newStream = await setupStream(mediaConstraints);
-        if (newStream) {
-            const videoTrack = newStream.getVideoTracks()[0];
+        const newCameraStream = await setupStream(mediaConstraints);
+        setLocalStream(newCameraStream);
+
+        // Re-enable camera/mic based on previous state
+        if (newCameraStream) {
+            const videoTrack = newCameraStream.getVideoTracks()[0];
             if (videoTrack) videoTrack.enabled = !isCameraOff;
-            const audioTrack = newStream.getAudioTracks()[0];
+            const audioTrack = newCameraStream.getAudioTracks()[0];
             if (audioTrack) audioTrack.enabled = !isMuted;
         }
 
-        await handleStreamChange(newStream);
+        await replaceStreamInPeers(newCameraStream);
     }
   }
 
@@ -524,7 +512,7 @@ export default function RoomPage() {
     if(!isSharingScreen) {
         const newStream = await setupStream(newConstraints);
         if (newStream) {
-            await handleStreamChange(newStream);
+            await replaceStreamInPeers(newStream);
         }
     }
   };
@@ -556,7 +544,7 @@ export default function RoomPage() {
     
     const stream = getStreamForParticipant(participant.id);
     const isLocal = participant.id === selfId;
-    const isVideoOff = isLocal ? isCameraOff : participant.isCameraOff;
+    const isVideoOff = isLocal ? (isSharingScreen ? false : isCameraOff) : participant.isCameraOff;
     const isAudioMuted = isLocal ? isMuted : participant.isMuted;
     
     useEffect(() => {
@@ -651,3 +639,5 @@ export default function RoomPage() {
       </div>
   )
 }
+
+    
