@@ -31,6 +31,20 @@ export const translations = {
     your_name_placeholder: 'Your name',
     join_meeting_button: 'Join Meeting',
     joining_meeting_loading: 'Joining the meeting, please wait...',
+    invite_participants: 'Invite Participants',
+    invitation_copied_title: 'Invitation Copied!',
+    invitation_copied_description: 'Meeting invitation has been copied to your clipboard.',
+    invitation_message: `
+Hello!
+
+{inviter} has invited you to a ConnectWave meeting.
+Time: {time}
+
+Room ID: {roomId}
+Join here: {link}
+
+See you there!
+`
   },
   zh: {
     appName: 'ConnectWave',
@@ -64,9 +78,21 @@ export const translations = {
     your_name_placeholder: '您的名字',
     join_meeting_button: '加入会议',
     joining_meeting_loading: '正在加入会议室，请稍候...',
+    invite_participants: '邀请参会者',
+    invitation_copied_title: '已复制邀请信息！',
+    invitation_copied_description: '会议邀请信息已复制到您的剪贴板。',
+    invitation_message: `
+您好！
+
+{inviter} 邀请您加入 ConnectWave 会议。
+邀请时间：{time}
+
+会议室ID: {roomId}
+点击链接加入: {link}
+
+期待您的加入！
+`
   },
 }
 
 export type Translations = typeof translations.en;
-
-    

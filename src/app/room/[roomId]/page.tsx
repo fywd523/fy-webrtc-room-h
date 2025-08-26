@@ -14,6 +14,7 @@ import {
   PhoneOff,
   Users,
   Loader,
+  UserPlus,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -459,6 +460,22 @@ export default function RoomPage() {
       }
   }
 
+  const handleInvite = () => {
+    const joinLink = `${window.location.origin}/room/${roomId}`;
+    const inviteTime = new Date().toLocaleString();
+    const message = t.invitation_message
+      .replace('{inviter}', userName)
+      .replace('{time}', inviteTime)
+      .replace('{roomId}', roomId)
+      .replace('{link}', joinLink);
+      
+    navigator.clipboard.writeText(message);
+    toast({
+      title: t.invitation_copied_title,
+      description: t.invitation_copied_description,
+    });
+  };
+
   const selfId = socketRef.current?.id;
   const mainSpeaker = participants.find(p => p.isSharingScreen) || participants[0];
   const otherParticipants = participants.filter(p => p.id !== mainSpeaker?.id);
@@ -606,6 +623,15 @@ export default function RoomPage() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{isCameraOff ? t.start_video : t.stop_video}</TooltipContent>
+            </Tooltip>
+            
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="secondary" size="lg" className="rounded-full w-14 h-14" onClick={handleInvite}>
+                  <UserPlus className="h-6 w-6" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t.invite_participants}</TooltipContent>
             </Tooltip>
 
             <Tooltip>
