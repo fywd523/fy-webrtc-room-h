@@ -46,7 +46,24 @@ Room ID: {roomId}
 Join here: {link}
 
 See you there!
-`
+`,
+    settings_description: 'Adjust your media and appearance settings.',
+    media_test: 'Media Test',
+    appearance: 'Appearance',
+    camera: 'Camera',
+    camera_off: 'Camera is off',
+    select_camera: 'Select a camera',
+    microphone: 'Microphone',
+    select_microphone: 'Select a microphone',
+    microphone_level: 'Microphone Level',
+    theme_color: 'Theme Color',
+    themes: {
+      teal: 'Teal',
+      blue: 'Blue',
+      green: 'Green',
+      purple: 'Purple',
+      orange: 'Orange',
+    },
   },
   zh: {
     appName: 'ConnectWave',
@@ -94,7 +111,24 @@ See you there!
 点击链接加入: {link}
 
 期待您的加入！
-`
+`,
+    settings_description: '调整您的媒体和外观设置。',
+    media_test: '媒体测试',
+    appearance: '外观',
+    camera: '摄像头',
+    camera_off: '摄像头已关闭',
+    select_camera: '选择一个摄像头',
+    microphone: '麦克风',
+    select_microphone: '选择一个麦克风',
+    microphone_level: '麦克风音量',
+    theme_color: '主题颜色',
+    themes: {
+      teal: '水鸭青',
+      blue: '天空蓝',
+      green: '活力绿',
+      purple: '优雅紫',
+      orange: '阳光橙',
+    },
   },
 }
 

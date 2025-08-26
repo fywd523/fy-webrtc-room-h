@@ -139,6 +139,13 @@ export function SettingsDialog({ isOpen, onOpenChange, localStream, onMediaDevic
     onMediaDeviceChange('audio', deviceId);
   }
 
+  const themeNameMap: { [key: string]: keyof typeof t.themes } = {
+    Teal: 'teal',
+    Blue: 'blue',
+    Green: 'green',
+    Purple: 'purple',
+    Orange: 'orange',
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -146,18 +153,18 @@ export function SettingsDialog({ isOpen, onOpenChange, localStream, onMediaDevic
         <DialogHeader>
           <DialogTitle>{t.settings}</DialogTitle>
           <DialogDescription>
-            Adjust your media and appearance settings.
+            {t.settings_description}
           </DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="media" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="media">
-              <Monitor className="mr-2" />
-              Media Test
+              <Monitor className="mr-2 h-4 w-4" />
+              {t.media_test}
             </TabsTrigger>
             <TabsTrigger value="appearance">
-              <Palette className="mr-2" />
-              Appearance
+              <Palette className="mr-2 h-4 w-4" />
+              {t.appearance}
             </TabsTrigger>
           </TabsList>
           <TabsContent value="media" className="mt-4">
@@ -170,37 +177,37 @@ export function SettingsDialog({ isOpen, onOpenChange, localStream, onMediaDevic
                              ) : (
                                 <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground">
                                     <Camera className="h-16 w-16" />
-                                    <p>Camera is off</p>
+                                    <p>{t.camera_off}</p>
                                 </div>
                              )}
                          </div>
                          <div className="w-full space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="camera-select">Camera</Label>
+                                    <Label htmlFor="camera-select">{t.camera}</Label>
                                     <Select value={selectedVideoDevice} onValueChange={handleVideoDeviceChange}>
                                         <SelectTrigger id="camera-select">
-                                            <SelectValue placeholder="Select a camera" />
+                                            <SelectValue placeholder={t.select_camera} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {videoDevices.map(device => (
+                                            {videoDevices.map((device, index) => (
                                                 <SelectItem key={device.deviceId} value={device.deviceId}>
-                                                    {device.label || `Camera ${videoDevices.indexOf(device) + 1}`}
+                                                    {device.label || `${t.camera} ${index + 1}`}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="mic-select">Microphone</Label>
+                                    <Label htmlFor="mic-select">{t.microphone}</Label>
                                      <Select value={selectedAudioDevice} onValueChange={handleAudioDeviceChange}>
                                         <SelectTrigger id="mic-select">
-                                            <SelectValue placeholder="Select a microphone" />
+                                            <SelectValue placeholder={t.select_microphone} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {audioDevices.map(device => (
+                                            {audioDevices.map((device, index) => (
                                                 <SelectItem key={device.deviceId} value={device.deviceId}>
-                                                    {device.label || `Microphone ${audioDevices.indexOf(device) + 1}`}
+                                                    {device.label || `${t.microphone} ${index + 1}`}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
@@ -209,8 +216,8 @@ export function SettingsDialog({ isOpen, onOpenChange, localStream, onMediaDevic
                             </div>
                             <div className="space-y-2">
                                 <div className="flex items-center gap-2">
-                                    <Mic className="text-muted-foreground" />
-                                    <p className="text-sm font-medium">Microphone Level</p>
+                                    <Mic className="text-muted-foreground h-4 w-4" />
+                                    <p className="text-sm font-medium">{t.microphone_level}</p>
                                 </div>
                                 <Progress value={audioLevel} className="w-full" />
                             </div>
@@ -223,7 +230,7 @@ export function SettingsDialog({ isOpen, onOpenChange, localStream, onMediaDevic
              <Card>
                 <CardContent className="p-6">
                     <div className="space-y-4">
-                        <p className="font-medium">Theme Color</p>
+                        <p className="font-medium">{t.theme_color}</p>
                         <div className="grid grid-cols-5 gap-4">
                             {themes.map(theme => (
                                 <div key={theme.name} className="flex flex-col items-center gap-2 cursor-pointer" onClick={() => applyTheme(theme)}>
@@ -231,7 +238,7 @@ export function SettingsDialog({ isOpen, onOpenChange, localStream, onMediaDevic
                                         className={cn("w-12 h-12 rounded-full border-2", activeTheme === theme.name ? "border-ring" : "border-transparent")}
                                         style={{ backgroundColor: `hsl(${theme.primary})`}}
                                     />
-                                    <p className="text-sm">{theme.name}</p>
+                                    <p className="text-sm">{t.themes[themeNameMap[theme.name]]}</p>
                                 </div>
                             ))}
                         </div>
