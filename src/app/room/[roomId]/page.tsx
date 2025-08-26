@@ -579,7 +579,7 @@ export default function RoomPage() {
                     <VideoOff className="h-8 w-8 text-muted-foreground" />
                 </div>
             )}
-            <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium">{participant.name} {isLocal && '(You)'}</div>
+            <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium">{participant.name} {isLocal && `(${t.you})`}</div>
         </div>
     );
   };
@@ -619,7 +619,7 @@ export default function RoomPage() {
                            </div>
                         </div>
                     )}
-                    <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg text-sm font-medium">{mainSpeaker.name} {mainSpeaker.id === selfId && '(You)'} {mainSpeaker.isSharingScreen && `(${t.screen_sharing})`}</div>
+                    <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg text-sm font-medium">{mainSpeaker.name} {mainSpeaker.id === selfId && `(${t.you})`} {mainSpeaker.isSharingScreen && `(${t.screen_sharing})`}</div>
                 </div>
              ) : (
                 <div className="relative flex-1 w-full h-full rounded-lg overflow-hidden bg-card border shadow-md flex items-center justify-center">
