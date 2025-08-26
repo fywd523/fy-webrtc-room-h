@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -20,6 +21,7 @@ import { type Message, type Participant } from '@/lib/types'
 import { ChatPanel } from '@/components/ChatPanel'
 import { NamePromptDialog } from '@/components/NamePromptDialog'
 import { ControlBar } from '@/components/ControlBar'
+import { SettingsDialog } from '@/components/SettingsDialog'
 
 const ICE_SERVERS = {
   iceServers: [
@@ -44,6 +46,7 @@ export default function RoomPage() {
   const [isCameraOff, setIsCameraOff] = useState(true)
   const [isSharingScreen, setIsSharingScreen] = useState(false)
   const [isChatOpen, setIsChatOpen] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   
   const [participants, setParticipants] = useState<Participant[]>([])
   const [messages, setMessages] = useState<Message[]>([])
@@ -609,7 +612,11 @@ export default function RoomPage() {
           />
 
         </main>
-
+        <SettingsDialog 
+            isOpen={isSettingsOpen} 
+            onOpenChange={setIsSettingsOpen} 
+            localStream={localStream}
+        />
         <ControlBar
           isMuted={isMuted}
           isCameraOff={isCameraOff}
@@ -620,7 +627,7 @@ export default function RoomPage() {
           onLeave={() => router.push('/')}
           onToggleChat={() => setIsChatOpen(!isChatOpen)}
           onInvite={handleInvite}
-          onOpenSettings={() => toast({ title: 'Settings coming soon!'})}
+          onOpenSettings={() => setIsSettingsOpen(true)}
           t={t}
         />
       </div>
