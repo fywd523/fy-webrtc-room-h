@@ -1,19 +1,37 @@
 import { createServer } from 'http'
 import next from 'next'
 import { Server } from 'socket.io'
+import { parse } from 'url'
+import { exec } from 'child_process'
 
 const dev = process.env.NODE_ENV !== 'production'
-const hostname = 'localhost'
-const port = parseInt(process.env.PORT || '9002', 10)
+
+// Helper to parse command line arguments
+const getArg = (argName: string) => {
+    const args = process.argv.slice(2);
+    const arg = args.find(a => a.startsWith(`${argName}=`));
+    if (arg) {
+        return arg.split('=')[1];
+    }
+    const argIndex = args.indexOf(argName);
+    if (argIndex !== -1 && args[argIndex + 1]) {
+        return args[argIndex + 1];
+    }
+    return null;
+};
+
+
+const port = parseInt(getArg('--port') || process.env.PORT || '3000', 10)
+const hostname = getArg('--hostname') || 'localhost'
+
 const app = next({ dev, hostname, port })
 const handler = app.getRequestHandler()
 
-// 修改join-room事件处理逻辑
 interface Participant {
   id: string;
   name: string;
   isSharingScreen?: boolean;
-  joinTime: string; // 添加服务器端类型定义
+  joinTime: string;
 }
 
 interface Message {
@@ -28,7 +46,11 @@ const rooms: Record<string, Participant[]> = {}
 const roomMessages: Record<string, Message[]> = {}
 
 app.prepare().then(() => {
-  const httpServer = createServer(handler)
+  const httpServer = createServer((req, res) => {
+    const parsedUrl = parse(req.url!, true);
+    handler(req, res, parsedUrl);
+  });
+
   const io = new Server(httpServer)
 
   io.on('connection', (socket) => {
@@ -40,9 +62,7 @@ app.prepare().then(() => {
         rooms[roomId] = []
         roomMessages[roomId] = []
       }
-      // Avoid duplicate participants
       if (!rooms[roomId].find(p => p.id === id)) {
-        // 记录加入时间（ISO格式）
         rooms[roomId].push({
           id, 
           name, 
@@ -88,7 +108,6 @@ app.prepare().then(() => {
         }
     })
 
-    // WebRTC Signaling
     socket.on('webrtc-offer', ({ to, offer }) => {
       if (socket.id !== to) {
         console.log('sending webrtc-offer to...', to)
@@ -134,7 +153,21 @@ app.prepare().then(() => {
       console.error(err)
       process.exit(1)
     })
-    .listen(port, () => {
+    .listen(port, hostname, () => {
       console.log(`> Ready on http://${hostname}:${port}`)
     })
+
+   const handleExit = (signal: string) => {
+    console.log(`Received ${signal}. Shutting down gracefully.`);
+    io.close(() => {
+        console.log('Socket.IO server closed.');
+        httpServer.close(() => {
+            console.log('HTTP server closed.');
+            process.exit(0);
+        });
+    });
+    };
+
+    process.on('SIGINT', handleExit);
+    process.on('SIGTERM', handleExit);
 })
