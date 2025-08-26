@@ -2,7 +2,7 @@
 import { createContext, useContext, useState, useMemo } from 'react'
 import { translations, type Translations } from '@/lib/translations'
 
-type Language = 'en' | 'zh'
+type Language = 'en' | 'zh' | 'ja' | 'ko' | 'zh-TW';
 
 interface LanguageContextType {
   language: Language
@@ -38,3 +38,5 @@ export function useTranslation() {
   }
   return context
 }
+
+    

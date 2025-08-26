@@ -136,8 +136,214 @@ See you there!
     media_access_failed_description: '无法访问摄像头和麦克风。',
     screen_share_failed_title: '无法共享屏幕',
   },
+  ja: {
+    appName: 'ConnectWave',
+    app_description: '誰でも高品質なビデオ会議を。',
+    join_or_create_room: 'ルームに参加または作成',
+    create_new_room: '新しいルームを作成',
+    your_new_room_id: '新しいルームの準備ができました：',
+    join_this_room: 'このルームに参加',
+    or: 'または',
+    enter_room_id: 'ルームIDを入力',
+    join: '参加',
+    all_rights_reserved: '無断複写・転載を禁じます',
+    room_created_success: 'ルームが正常に作成されました',
+    room_id: 'ルームID',
+    error_title: 'エラー',
+    room_id_required: 'ルームIDを入力してください。',
+    copied_to_clipboard: 'クリップボードにコピーしました！',
+    mute: 'ミュート',
+    unmute: 'ミュート解除',
+    start_video: 'ビデオを開始',
+    stop_video: 'ビデオを停止',
+    share_screen: '画面を共有',
+    stop_sharing: '共有を停止',
+    chat: 'チャット',
+    leave_meeting: '会議を退出',
+    screen_sharing: '画面共有中',
+    type_message_placeholder: 'メッセージを入力...',
+    you: 'あなた',
+    welcome_to_room: 'ルームへようこそ',
+    name_prompt_description: '会議に参加するためにあなたの名前を入力してください。この名前は他の参加者に表示されます。',
+    your_name_placeholder: 'あなたの名前',
+    join_meeting_button: '会議に参加',
+    joining_meeting_loading: '会議に参加しています、お待ちください...',
+    invite_participants: '参加者を招待',
+    invitation_copied_title: '招待をコピーしました！',
+    invitation_copied_description: '会議の招待がクリップボードにコピーされました。',
+    settings: '設定',
+    invitation_message: `
+こんにちは！
+
+{inviter}さんがあなたをConnectWave会議に招待しました。
+招待時間：{time}
+
+ルームID：{roomId}
+こちらから参加：{link}
+
+お待ちしております！
+`,
+    settings_description: 'メディアと外観の設定を調整します。',
+    media_test: 'メディアテスト',
+    appearance: '外観',
+    camera: 'カメラ',
+    camera_off: 'カメラはオフです',
+    select_camera: 'カメラを選択',
+    microphone: 'マイク',
+    select_microphone: 'マイクを選択',
+    microphone_level: 'マイクレベル',
+    theme_color: 'テーマカラー',
+    themes: {
+      teal: 'ティール',
+      blue: 'ブルー',
+      green: 'グリーン',
+      purple: 'パープル',
+      orange: 'オレンジ',
+    },
+    media_access_failed_title: 'メディアアクセスに失敗しました',
+    media_access_failed_description: 'カメラとマイクにアクセスできませんでした。',
+    screen_share_failed_title: '画面共有に失敗しました',
+  },
+  ko: {
+    appName: 'ConnectWave',
+    app_description: '모두를 위한 고품질 화상 회의.',
+    join_or_create_room: '회의실 참여 또는 생성',
+    create_new_room: '새 회의실 만들기',
+    your_new_room_id: '새 회의실이 준비되었습니다:',
+    join_this_room: '이 회의실에 참여',
+    or: '또는',
+    enter_room_id: '회의실 ID 입력',
+    join: '참여',
+    all_rights_reserved: '모든 권리 보유',
+    room_created_success: '회의실이 성공적으로 생성되었습니다',
+    room_id: '회의실 ID',
+    error_title: '오류',
+    room_id_required: '회의실 ID를 입력하세요.',
+    copied_to_clipboard: '클립보드에 복사되었습니다!',
+    mute: '음소거',
+    unmute: '음소거 해제',
+    start_video: '비디오 시작',
+    stop_video: '비디오 중지',
+    share_screen: '화면 공유',
+    stop_sharing: '공유 중지',
+    chat: '채팅',
+    leave_meeting: '회의 나가기',
+    screen_sharing: '화면 공유 중',
+    type_message_placeholder: '메시지 입력...',
+    you: '나',
+    welcome_to_room: '회의실에 오신 것을 환영합니다',
+    name_prompt_description: '회의에 참여하려면 이름을 입력하세요. 이 이름은 다른 참가자에게 표시됩니다.',
+    your_name_placeholder: '이름',
+    join_meeting_button: '회의 참여',
+    joining_meeting_loading: '회의에 참여하는 중입니다. 잠시만 기다려 주세요...',
+    invite_participants: '참가자 초대',
+    invitation_copied_title: '초대 복사됨!',
+    invitation_copied_description: '회의 초대가 클립보드에 복사되었습니다.',
+    settings: '설정',
+    invitation_message: `
+안녕하세요!
+
+{inviter}님이 ConnectWave 회의에 초대했습니다.
+초대 시간: {time}
+
+회의실 ID: {roomId}
+여기에서 참여하세요: {link}
+
+기다리겠습니다!
+`,
+    settings_description: '미디어 및 모양 설정을 조정합니다.',
+    media_test: '미디어 테스트',
+    appearance: '모양',
+    camera: '카메라',
+    camera_off: '카메라가 꺼져 있습니다',
+    select_camera: '카메라 선택',
+    microphone: '마이크',
+    select_microphone: '마이크 선택',
+    microphone_level: '마이크 레벨',
+    theme_color: '테마 색상',
+    themes: {
+      teal: '청록색',
+      blue: '파란색',
+      green: '녹색',
+      purple: '보라색',
+      orange: '주황색',
+    },
+    media_access_failed_title: '미디어 액세스 실패',
+    media_access_failed_description: '카메라와 마이크에 액세스할 수 없습니다.',
+    screen_share_failed_title: '화면을 공유할 수 없습니다',
+  },
+  'zh-TW': {
+    appName: 'ConnectWave',
+    app_description: '為每個人提供高品質的視訊會議。',
+    join_or_create_room: '加入或建立會議室',
+    create_new_room: '建立新會議室',
+    your_new_room_id: '您的新會議室已準備就緒：',
+    join_this_room: '加入此會議室',
+    or: '或',
+    enter_room_id: '輸入會議室ID',
+    join: '加入',
+    all_rights_reserved: '版權所有',
+    room_created_success: '會議室建立成功',
+    room_id: '會議室ID',
+    error_title: '錯誤',
+    room_id_required: '請輸入會議室ID。',
+    copied_to_clipboard: '已複製到剪貼簿！',
+    mute: '靜音',
+    unmute: '取消靜音',
+    start_video: '開啟視訊',
+    stop_video: '關閉視訊',
+    share_screen: '分享螢幕',
+    stop_sharing: '停止分享',
+    chat: '聊天',
+    leave_meeting: '離開會議',
+    screen_sharing: '正在分享螢幕',
+    type_message_placeholder: '輸入訊息...',
+    you: '您',
+    welcome_to_room: '歡迎加入會議室',
+    name_prompt_description: '請輸入您的名字以加入會議。這個名字將會對其他參與者可見。',
+    your_name_placeholder: '您的名字',
+    join_meeting_button: '加入會議',
+    joining_meeting_loading: '正在加入會議室，請稍候...',
+    invite_participants: '邀請參與者',
+    invitation_copied_title: '已複製邀請資訊！',
+    invitation_copied_description: '會議邀請資訊已複製到您的剪貼簿。',
+    settings: '設定',
+    invitation_message: `
+您好！
+
+{inviter} 邀請您加入 ConnectWave 會議。
+邀請時間：{time}
+
+會議室ID: {roomId}
+點擊連結加入: {link}
+
+期待您的加入！
+`,
+    settings_description: '調整您的媒體和外觀設定。',
+    media_test: '媒體測試',
+    appearance: '外觀',
+    camera: '攝影機',
+    camera_off: '攝影機已關閉',
+    select_camera: '選擇一個攝影機',
+    microphone: '麥克風',
+    select_microphone: '選擇一個麥克風',
+    microphone_level: '麥克風音量',
+    theme_color: '主題顏色',
+    themes: {
+      teal: '水鴨青',
+      blue: '天空藍',
+      green: '活力綠',
+      purple: '優雅紫',
+      orange: '陽光橙',
+    },
+    media_access_failed_title: '媒體存取失敗',
+    media_access_failed_description: '無法存取攝影機和麥克風。',
+    screen_share_failed_title: '無法分享螢幕',
+  },
 }
 
 export type Translations = typeof translations.en;
+
+    
 
     

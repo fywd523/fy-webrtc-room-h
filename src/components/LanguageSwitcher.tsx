@@ -26,9 +26,20 @@ export default function LanguageSwitcher() {
           English
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setLanguage('zh')} disabled={language === 'zh'}>
-          中文
+          中文 (简体)
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setLanguage('zh-TW')} disabled={language === 'zh-TW'}>
+          中文 (繁體)
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setLanguage('ja')} disabled={language === 'ja'}>
+          日本語
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setLanguage('ko')} disabled={language === 'ko'}>
+          한국어
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
 }
+
+    
