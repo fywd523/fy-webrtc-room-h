@@ -26,7 +26,7 @@ type ControlBarProps = {
 const ControlButton = ({ tooltip, onClick, variant = "outline", size = "default", className, children }: { tooltip: string, onClick: () => void, variant?: "default" | "secondary" | "destructive" | "outline" | "ghost" | "link" | null | undefined, size?: "default" | "sm" | "lg" | "icon" | null | undefined, className?: string, children: React.ReactNode }) => (
   <Tooltip>
     <TooltipTrigger asChild>
-      <Button variant={variant} size={size} className={cn("rounded-full", className)} onClick={onClick}>
+      <Button variant={variant} size={size} className={cn("rounded-full text-foreground hover:text-foreground", className)} onClick={onClick}>
         {children}
       </Button>
     </TooltipTrigger>
@@ -54,21 +54,21 @@ export function ControlBar({
     <TooltipProvider>
       <footer className="flex h-24 items-center justify-center border-t bg-background/95 backdrop-blur-sm shrink-0 px-4 md:px-8">
         <div className="flex items-center justify-center gap-3 md:gap-4">
-          <ControlButton tooltip={isMuted ? t.unmute : t.mute} onClick={onToggleAudio} variant={'outline'} className={cn("h-14 w-14 border-0 bg-card hover:bg-muted", isMuted ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground" : "")}>
+          <ControlButton tooltip={isMuted ? t.unmute : t.mute} onClick={onToggleAudio} variant={'outline'} className={cn("h-14 w-14 border-0 bg-card hover:bg-muted", isMuted ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground hover:text-destructive-foreground" : "")}>
             {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
           </ControlButton>
 
-          <ControlButton tooltip={isCameraOff ? t.start_video : t.stop_video} onClick={onToggleVideo} variant={'outline'} className={cn("h-14 w-14 border-0 bg-card hover:bg-muted", isCameraOff ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground" : "")}>
+          <ControlButton tooltip={isCameraOff ? t.start_video : t.stop_video} onClick={onToggleVideo} variant={'outline'} className={cn("h-14 w-14 border-0 bg-card hover:bg-muted", isCameraOff ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground hover:text-destructive-foreground" : "")}>
             {isCameraOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
           </ControlButton>
 
-          <ControlButton tooltip={isScreenSharing ? t.stop_sharing : t.share_screen} onClick={onToggleScreenShare} variant={'outline'} className={cn("h-14 w-14 border-0 bg-card hover:bg-muted", isScreenSharing && "bg-accent text-accent-foreground hover:bg-accent/90")}>
+          <ControlButton tooltip={isScreenSharing ? t.stop_sharing : t.share_screen} onClick={onToggleScreenShare} variant={'outline'} className={cn("h-14 w-14 border-0 bg-card hover:bg-muted", isScreenSharing && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground")}>
              {isScreenSharing ? <ScreenShareOff className="h-6 w-6" /> : <ScreenShare className="h-6 w-6" />}
           </ControlButton>
 
           <div className="w-4 md:w-8" />
           
-          <ControlButton tooltip={t.leave_meeting} onClick={onLeave} variant="destructive" className="h-16 w-16">
+          <ControlButton tooltip={t.leave_meeting} onClick={onLeave} variant="destructive" className="h-16 w-16 text-destructive-foreground hover:text-destructive-foreground">
             <PhoneOff className="h-8 w-8" />
           </ControlButton>
 
