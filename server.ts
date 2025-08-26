@@ -2,7 +2,6 @@ import { createServer } from 'http'
 import next from 'next'
 import { Server } from 'socket.io'
 import { parse } from 'url'
-import { exec } from 'child_process'
 
 const dev = process.env.NODE_ENV !== 'production'
 
