@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, WheelEvent } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -87,7 +87,7 @@ export function ChatPanel({ isOpen, onOpenChange, messages, onSendMessage, t, us
                     <Smile className="h-4 w-4" />
                     </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 border-0">
+                <PopoverContent className="w-auto p-0 border-0" onWheel={(event: WheelEvent<HTMLDivElement>) => event.stopPropagation()}>
                     <EmojiPicker onEmojiClick={onEmojiClick} theme={Theme.AUTO} />
                 </PopoverContent>
                 </Popover>
@@ -106,5 +106,3 @@ export function ChatPanel({ isOpen, onOpenChange, messages, onSendMessage, t, us
     </Sheet>
   );
 }
-
-    
