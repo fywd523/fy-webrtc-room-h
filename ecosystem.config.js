@@ -1,16 +1,18 @@
+
 module.exports = {
   apps: [
     {
       name: 'connectwave',
-      script: 'npm',
-      args: 'run start',
-      instances: 'max',
-      exec_mode: 'cluster',
+      script: './node_modules/.bin/tsx',
+      args: 'server.ts --port 5577 --hostname 0.0.0.0',
+      instances: 1, 
+      exec_mode: 'fork', // 使用 fork 模式
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '1G',
       env: {
         NODE_ENV: 'production',
       },
-      // 注意：这里的端口和主机名需要与您服务器的实际配置相匹配
-      // 如果您在 `npm run start` 脚本中硬编码了端口，PM2 将会使用那个端口
     },
   ],
 };
