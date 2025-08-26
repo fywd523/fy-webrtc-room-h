@@ -23,7 +23,7 @@ type ControlBarProps = {
   unreadMessages?: number;
 };
 
-const ControlButton = ({ tooltip, onClick, variant, size = "default", className, children }: { tooltip: string, onClick: () => void, variant?: "default" | "secondary" | "destructive" | "outline" | "ghost" | "link" | null | undefined, size?: "default" | "sm" | "lg" | "icon" | null | undefined, className?: string, children: React.ReactNode }) => (
+const ControlButton = ({ tooltip, onClick, variant = "outline", size = "default", className, children }: { tooltip: string, onClick: () => void, variant?: "default" | "secondary" | "destructive" | "outline" | "ghost" | "link" | null | undefined, size?: "default" | "sm" | "lg" | "icon" | null | undefined, className?: string, children: React.ReactNode }) => (
   <Tooltip>
     <TooltipTrigger asChild>
       <Button variant={variant} size={size} className={cn("rounded-full", className)} onClick={onClick}>
@@ -52,17 +52,17 @@ export function ControlBar({
 }: ControlBarProps) {
   return (
     <TooltipProvider>
-      <footer className="flex h-24 items-center justify-center border-t bg-background/80 backdrop-blur-sm shrink-0 px-4 md:px-8">
+      <footer className="flex h-24 items-center justify-center border-t bg-background/95 backdrop-blur-sm shrink-0 px-4 md:px-8">
         <div className="flex items-center justify-center gap-3 md:gap-4">
-          <ControlButton tooltip={isMuted ? t.unmute : t.mute} onClick={onToggleAudio} variant={'outline'} className={cn("h-14 w-14", isMuted ? "bg-destructive hover:bg-destructive/90" : "bg-secondary hover:bg-secondary/80")}>
+          <ControlButton tooltip={isMuted ? t.unmute : t.mute} onClick={onToggleAudio} variant={'outline'} className={cn("h-14 w-14 border-0 bg-card hover:bg-muted", isMuted ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground" : "")}>
             {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
           </ControlButton>
 
-          <ControlButton tooltip={isCameraOff ? t.start_video : t.stop_video} onClick={onToggleVideo} variant={'outline'} className={cn("h-14 w-14", isCameraOff ? "bg-destructive hover:bg-destructive/90" : "bg-secondary hover:bg-secondary/80")}>
+          <ControlButton tooltip={isCameraOff ? t.start_video : t.stop_video} onClick={onToggleVideo} variant={'outline'} className={cn("h-14 w-14 border-0 bg-card hover:bg-muted", isCameraOff ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground" : "")}>
             {isCameraOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
           </ControlButton>
 
-          <ControlButton tooltip={isScreenSharing ? t.stop_sharing : t.share_screen} onClick={onToggleScreenShare} variant={'outline'} className={cn("h-14 w-14 bg-secondary hover:bg-secondary/80", isScreenSharing && "bg-primary text-primary-foreground hover:bg-primary/90")}>
+          <ControlButton tooltip={isScreenSharing ? t.stop_sharing : t.share_screen} onClick={onToggleScreenShare} variant={'outline'} className={cn("h-14 w-14 border-0 bg-card hover:bg-muted", isScreenSharing && "bg-accent text-accent-foreground hover:bg-accent/90")}>
              {isScreenSharing ? <ScreenShareOff className="h-6 w-6" /> : <ScreenShare className="h-6 w-6" />}
           </ControlButton>
 
@@ -74,12 +74,12 @@ export function ControlBar({
 
           <div className="w-4 md:w-8" />
 
-          <ControlButton tooltip={t.invite_participants} onClick={onInvite} variant="outline" className="h-14 w-14 bg-secondary hover:bg-secondary/80">
+          <ControlButton tooltip={t.invite_participants} onClick={onInvite} variant="outline" className="h-14 w-14 border-0 bg-card hover:bg-muted">
             <UserPlus className="h-6 w-6" />
           </ControlButton>
 
           <div className="relative">
-            <ControlButton tooltip={t.chat} onClick={onToggleChat} variant="outline" className="h-14 w-14 bg-secondary hover:bg-secondary/80">
+            <ControlButton tooltip={t.chat} onClick={onToggleChat} variant="outline" className="h-14 w-14 border-0 bg-card hover:bg-muted">
               <MessageSquare className="h-6 w-6" />
             </ControlButton>
             {unreadMessages > 0 && (
@@ -87,7 +87,7 @@ export function ControlBar({
             )}
           </div>
 
-          <ControlButton tooltip={t.settings} onClick={onOpenSettings} variant="outline" className="h-14 w-14 bg-secondary hover:bg-secondary/80">
+          <ControlButton tooltip={t.settings} onClick={onOpenSettings} variant="outline" className="h-14 w-14 border-0 bg-card hover:bg-muted">
             <Settings className="h-6 w-6" />
           </ControlButton>
         </div>
