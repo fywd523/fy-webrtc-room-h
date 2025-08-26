@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,6 +17,11 @@ export default function Home() {
   const { t } = useTranslation()
   const [roomId, setRoomId] = useState('')
   const [newRoomId, setNewRoomId] = useState('')
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+
+  useEffect(() => {
+    setCurrentYear(new Date().getFullYear());
+  }, []);
 
   const createRoom = () => {
     const newId = Math.random().toString(36).substring(2, 9)
@@ -108,7 +113,7 @@ export default function Home() {
         </div>
       </main>
       <footer className="text-center p-4 text-xs text-muted-foreground">
-        &copy; {new Date().getFullYear()} ConnectWave. {t.all_rights_reserved}.
+        &copy; {currentYear} ConnectWave. {t.all_rights_reserved}.
       </footer>
     </div>
   )

@@ -4,18 +4,10 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Copy,
-  Mic,
-  MicOff,
   Video,
   VideoOff,
-  ScreenShare,
-  ScreenShareOff,
-  MessageSquare,
-  PhoneOff,
   Users,
   Loader,
-  UserPlus,
-  Settings,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -23,12 +15,11 @@ import { useToast } from '@/hooks/use-toast'
 import ConnectWaveLogo from '@/components/ConnectWaveLogo'
 import { useTranslation } from '@/hooks/use-translation'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Badge } from '@/components/ui/badge'
 import io, { Socket } from 'socket.io-client'
 import { type Message, type Participant } from '@/lib/types'
 import { ChatPanel } from '@/components/ChatPanel'
 import { NamePromptDialog } from '@/components/NamePromptDialog'
+import { ControlBar } from '@/components/ControlBar'
 
 const ICE_SERVERS = {
   iceServers: [
@@ -261,7 +252,7 @@ export default function RoomPage() {
       return () => {
           socket.off('update-participants', handleUpdateParticipants);
       };
-  }, [createPeerConnection]);
+  }, [createPeerConnection, participants]);
 
     // This effect ensures that when localStream is set/changed, its tracks are added to all peer connections.
   useEffect(() => {
@@ -306,8 +297,12 @@ export default function RoomPage() {
   const toggleAudio = async () => {
     let stream = localStream;
     if (!stream) {
-      stream = await setupStream({ video: false, audio: true });
-      if (stream) setLocalStream(stream); else return;
+      stream = await setupStream({ video: !isCameraOff, audio: true });
+      if (stream) {
+        setLocalStream(stream);
+      } else {
+        return;
+      }
     }
 
     const audioTrack = stream.getAudioTracks()[0];
@@ -320,8 +315,12 @@ export default function RoomPage() {
   const toggleVideo = async () => {
     let stream = localStream;
     if (!stream) {
-      stream = await setupStream({ video: true, audio: true });
-       if (stream) setLocalStream(stream); else return;
+      stream = await setupStream({ video: true, audio: !isMuted });
+       if (stream) {
+         setLocalStream(stream);
+       } else {
+         return;
+       }
     }
 
     const videoTrack = stream.getVideoTracks()[0];
@@ -331,13 +330,15 @@ export default function RoomPage() {
     }
   };
 
+
   const handleNameSubmit = (name: string) => {
     const newUrl = `${window.location.pathname}?name=${encodeURIComponent(name)}`;
     router.replace(newUrl, { scroll: false });
     setUserName(name);
     setIsNameModalOpen(false);
-    // 刷新页面
-    window.location.href = newUrl;
+    if (socketRef.current?.id) {
+      socketRef.current.emit('join-room', { roomId, name: name, id: socketRef.current.id });
+    }
   }
 
   const copyRoomId = () => {
@@ -478,8 +479,10 @@ export default function RoomPage() {
   };
 
   const selfId = socketRef.current?.id;
-  const mainSpeaker = participants.find(p => p.isSharingScreen) || participants[0];
-  const otherParticipants = participants.filter(p => p.id !== mainSpeaker?.id);
+  const mainSpeaker = participants.find(p => p.isSharingScreen) || participants.find(p => p.id !== selfId) || participants[0];
+  const otherParticipants = participants.filter(p => p.id !== mainSpeaker?.id && p.id !== selfId);
+  const selfParticipant = participants.find(p => p.id === selfId);
+
   
   if (isLoading) {
     return (
@@ -494,16 +497,41 @@ export default function RoomPage() {
     return <NamePromptDialog isOpen={isNameModalOpen} onNameSubmit={handleNameSubmit} t={t} />;
   }
 
-  const getStreamForParticipant = (participant: Participant | undefined) => {
-      if (!participant) return null;
-      if (participant.id === selfId) return localStream;
-      return remoteStreams[participant.id];
+  const getStreamForParticipant = (participantId: string | undefined) => {
+      if (!participantId) return null;
+      if (participantId === selfId) return localStream;
+      return remoteStreams[participantId];
   }
   
-  const mainSpeakerStream = getStreamForParticipant(mainSpeaker);
+  const mainSpeakerStream = getStreamForParticipant(mainSpeaker?.id);
+
+  const ParticipantVideo = ({ participant, stream, isMuted, isCameraOff, isLocal = false }: { participant: Participant | undefined, stream: MediaStream | null, isMuted: boolean, isCameraOff: boolean, isLocal?: boolean }) => {
+    const videoRef = useRef<HTMLVideoElement>(null);
+
+    useEffect(() => {
+        if (videoRef.current && stream) {
+            videoRef.current.srcObject = stream;
+        }
+    }, [stream]);
+
+    if (!participant) return null;
+
+    return (
+        <div className="relative aspect-video h-full rounded-lg overflow-hidden bg-card border shadow-md">
+            {stream && !isCameraOff ? (
+                <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted={isLocal} />
+            ) : (
+                <div className="w-full h-full flex items-center justify-center bg-muted">
+                    <VideoOff className="h-8 w-8 text-muted-foreground" />
+                </div>
+            )}
+            <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium">{participant.name} {isLocal && '(You)'}</div>
+        </div>
+    );
+  };
+
 
   return (
-    <TooltipProvider>
       <div className="flex h-screen w-full flex-col bg-background text-foreground">
         <header className="flex h-16 items-center justify-between border-b px-4 shrink-0">
           <ConnectWaveLogo />
@@ -525,7 +553,7 @@ export default function RoomPage() {
                          <video 
                           ref={el => { if (el && el.srcObject !== mainSpeakerStream) el.srcObject = mainSpeakerStream }} 
                           className="w-full h-full object-contain" 
-                          autoPlay playsInline muted
+                          autoPlay playsInline muted={mainSpeaker.id === selfId}
                         />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center">
@@ -544,44 +572,30 @@ export default function RoomPage() {
                     <div className="text-center">
                         <Users className="h-16 w-16 mx-auto text-muted-foreground" />
                         <p className="mt-2 text-muted-foreground">{t.welcome_to_room}</p>
+                        <p className="text-sm text-muted-foreground">Invite others to join!</p>
                     </div>
                 </div>
              )}
              <div className="flex gap-4 h-32 md:h-40 shrink-0">
                   {/* Local Video Thumbnail */}
-                  <div className="relative aspect-video h-full rounded-lg overflow-hidden bg-card border shadow-md">
-                     {localStream && !isCameraOff ? (
-                       <video ref={localVideoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-                     ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-muted">
-                           <VideoOff className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                     )}
-                    <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium">{userName} (You)</div>
-                     <div className="absolute top-2 right-2 bg-black/50 p-1 rounded-full">
-                        {isMuted ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-white" />}
-                     </div>
-                  </div>
-
-                 {otherParticipants.map((p) => {
-                   const remoteStream = getStreamForParticipant(p);
-                   const participantDetails = participants.find(ppt => ppt.id === p.id);
-                   return (
-                      <div key={p.id} className="relative aspect-video h-full rounded-lg overflow-hidden bg-card border shadow-md">
-                          {remoteStream ? (
-                            <video ref={el => { if (el && el.srcObject !== remoteStream) el.srcObject = remoteStream }} className="w-full h-full object-cover" muted autoPlay playsInline />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-muted">
-                               <VideoOff className="h-8 w-8 text-muted-foreground" />
-                            </div>
-                          )}
-                           <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium">{p.name}</div>
-                           <div className="absolute top-2 right-2 bg-black/50 p-1 rounded-full">
-                              {participantDetails?.isMuted ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-white" />}
-                           </div>
-                      </div>
-                   )
-                 })}
+                  {selfParticipant && (
+                    <ParticipantVideo
+                        participant={selfParticipant}
+                        stream={localStream}
+                        isMuted={isMuted}
+                        isCameraOff={isCameraOff}
+                        isLocal={true}
+                    />
+                  )}
+                 {otherParticipants.map((p) => (
+                    <ParticipantVideo
+                        key={p.id}
+                        participant={p}
+                        stream={getStreamForParticipant(p.id)}
+                        isMuted={p.isMuted}
+                        isCameraOff={p.isCameraOff}
+                    />
+                 ))}
              </div>
           </div>
           
@@ -596,93 +610,19 @@ export default function RoomPage() {
 
         </main>
 
-        <footer className="flex h-20 items-center justify-between border-t bg-background/80 backdrop-blur-sm shrink-0 px-4 md:px-8">
-          <div className="flex items-center gap-2 md:gap-3">
-             <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={isMuted ? 'destructive' : 'secondary'}
-                    size="lg"
-                    className="rounded-full w-14 h-14"
-                    onClick={toggleAudio}
-                  >
-                    {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{isMuted ? t.unmute : t.mute}</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={isCameraOff ? 'destructive' : 'secondary'}
-                    size="lg"
-                    className="rounded-full w-14 h-14"
-                    onClick={toggleVideo}
-                  >
-                    {isCameraOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{isCameraOff ? t.start_video : t.stop_video}</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant={isSharingScreen ? "default" : "secondary"} size="lg" className="rounded-full w-14 h-14" onClick={toggleScreenShare}>
-                    {isSharingScreen ? <ScreenShareOff className="h-6 w-6" /> : <ScreenShare className="h-6 w-6" />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{isSharingScreen ? t.stop_sharing : t.share_screen}</TooltipContent>
-              </Tooltip>
-          </div>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="destructive"
-                size="lg"
-                className="rounded-full w-16 h-16"
-                onClick={() => router.push('/')}
-              >
-                <PhoneOff className="h-7 w-7" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t.leave_meeting}</TooltipContent>
-          </Tooltip>
-
-          <div className="flex items-center gap-2 md:gap-3">
-            <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="secondary" size="lg" className="rounded-full w-14 h-14" onClick={handleInvite}>
-                    <UserPlus className="h-6 w-6" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t.invite_participants}</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="secondary" size="lg" className="rounded-full w-14 h-14 relative" onClick={() => setIsChatOpen(true)}>
-                    <MessageSquare className="h-6 w-6" />
-                    {messages.filter(m => !m.isLocal).length > 0 && (
-                        <Badge variant="destructive" className="absolute -top-1 -right-1 p-1 h-5 w-5 flex items-center justify-center text-xs">!</Badge>
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t.chat}</TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="secondary" size="lg" className="rounded-full w-14 h-14" onClick={() => toast({ title: 'Settings coming soon!'})}>
-                    <Settings className="h-6 w-6" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t.settings}</TooltipContent>
-              </Tooltip>
-          </div>
-        </footer>
+        <ControlBar
+          isMuted={isMuted}
+          isCameraOff={isCameraOff}
+          isScreenSharing={isSharingScreen}
+          onToggleAudio={toggleAudio}
+          onToggleVideo={toggleVideo}
+          onToggleScreenShare={toggleScreenShare}
+          onLeave={() => router.push('/')}
+          onToggleChat={() => setIsChatOpen(!isChatOpen)}
+          onInvite={handleInvite}
+          onOpenSettings={() => toast({ title: 'Settings coming soon!'})}
+          t={t}
+        />
       </div>
-    </TooltipProvider>
   )
 }

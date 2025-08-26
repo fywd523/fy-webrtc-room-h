@@ -30,7 +30,7 @@ export function NamePromptDialog({ isOpen, onNameSubmit, t }: NamePromptDialogPr
   };
 
   return (
-    <Dialog open={isOpen}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleSubmit()}>
       <DialogContent
         className="sm:max-w-[425px]"
         onInteractOutside={(e) => e.preventDefault()}
@@ -72,5 +72,3 @@ declare module '@radix-ui/react-dialog' {
         hideCloseButton?: boolean;
     }
 }
-
-    
