@@ -53,15 +53,15 @@ export function ControlBar({
     <TooltipProvider>
       <footer className="flex h-24 items-center justify-center border-t bg-background/80 backdrop-blur-sm shrink-0 px-4 md:px-8">
         <div className="flex items-center justify-center gap-3 md:gap-4">
-          <ControlButton tooltip={isMuted ? t.unmute : t.mute} onClick={onToggleAudio} variant={isMuted ? 'destructive' : 'secondary'} className={cn("h-14 w-14", !isMuted && "bg-muted hover:bg-muted/80")}>
+          <ControlButton tooltip={isMuted ? t.unmute : t.mute} onClick={onToggleAudio} variant={isMuted ? 'destructive' : 'outline'} className={cn("h-14 w-14", !isMuted && "bg-secondary")}>
             {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
           </ControlButton>
 
-          <ControlButton tooltip={isCameraOff ? t.start_video : t.stop_video} onClick={onToggleVideo} variant={isCameraOff ? 'destructive' : 'secondary'} className={cn("h-14 w-14", !isCameraOff && "bg-muted hover:bg-muted/80")}>
+          <ControlButton tooltip={isCameraOff ? t.start_video : t.stop_video} onClick={onToggleVideo} variant={isCameraOff ? 'destructive' : 'outline'} className={cn("h-14 w-14", !isCameraOff && "bg-secondary")}>
             {isCameraOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
           </ControlButton>
 
-          <ControlButton tooltip={isScreenSharing ? t.stop_sharing : t.share_screen} onClick={onToggleScreenShare} variant={isScreenSharing ? 'default' : 'secondary'} className={cn("h-14 w-14", !isScreenSharing && "bg-muted hover:bg-muted/80")}>
+          <ControlButton tooltip={isScreenSharing ? t.stop_sharing : t.share_screen} onClick={onToggleScreenShare} variant={isScreenSharing ? 'default' : 'outline'} className={cn("h-14 w-14", !isScreenSharing && "bg-secondary")}>
              {isScreenSharing ? <ScreenShareOff className="h-6 w-6" /> : <ScreenShare className="h-6 w-6" />}
           </ControlButton>
 
@@ -73,12 +73,12 @@ export function ControlBar({
 
           <div className="w-4 md:w-8" />
 
-          <ControlButton tooltip={t.invite_participants} onClick={onInvite} variant="secondary" className="h-14 w-14 bg-muted hover:bg-muted/80">
+          <ControlButton tooltip={t.invite_participants} onClick={onInvite} variant="outline" className="h-14 w-14 bg-secondary">
             <UserPlus className="h-6 w-6" />
           </ControlButton>
 
           <div className="relative">
-            <ControlButton tooltip={t.chat} onClick={onToggleChat} variant="secondary" className="h-14 w-14 bg-muted hover:bg-muted/80">
+            <ControlButton tooltip={t.chat} onClick={onToggleChat} variant="outline" className="h-14 w-14 bg-secondary">
               <MessageSquare className="h-6 w-6" />
             </ControlButton>
             {unreadMessages > 0 && (
@@ -86,7 +86,7 @@ export function ControlBar({
             )}
           </div>
 
-          <ControlButton tooltip={t.settings} onClick={onOpenSettings} variant="secondary" className="h-14 w-14 bg-muted hover:bg-muted/80">
+          <ControlButton tooltip={t.settings} onClick={onOpenSettings} variant="outline" className="h-14 w-14 bg-secondary">
             <Settings className="h-6 w-6" />
           </ControlButton>
         </div>
