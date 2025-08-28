@@ -12,7 +12,9 @@ import {
   Minimize,
   Maximize,
   Volume2,
-  VolumeX
+  VolumeX,
+  ChevronUp,
+  X
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -26,6 +28,7 @@ import { ChatPanel } from '@/components/ChatPanel'
 import { NamePromptDialog } from '@/components/NamePromptDialog'
 import { ControlBar } from '@/components/ControlBar'
 import { SettingsDialog } from '@/components/SettingsDialog'
+import { cn } from '@/lib/utils'
 
 const ICE_SERVERS = {
   iceServers: [
@@ -50,6 +53,7 @@ export default function RoomPage() {
   const [isSharingScreen, setIsSharingScreen] = useState(false)
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isMobileControlsOpen, setIsMobileControlsOpen] = useState(false);
   
   const [participants, setParticipants] = useState<Participant[]>([])
   const [messages, setMessages] = useState<Message[]>([])
@@ -634,6 +638,21 @@ export default function RoomPage() {
     ? participants.filter(p => p.id === maximizedParticipantId)
     : participants;
 
+  const commonControlBarProps = {
+    isMuted,
+    isCameraOff,
+    isScreenSharing,
+    onToggleAudio: toggleAudio,
+    onToggleVideo: toggleVideo,
+    onToggleScreenShare: toggleScreenShare,
+    onLeave: () => router.push('/'),
+    onToggleChat: () => setIsChatOpen(!isChatOpen),
+    onInvite: handleInvite,
+    onOpenSettings: () => setIsSettingsOpen(true),
+    t,
+  };
+
+
   return (
       <div className="flex flex-col h-screen w-full bg-background text-foreground">
         <header className="h-16 flex items-center justify-between border-b px-4 shrink-0 z-10 bg-background fixed top-0 left-0 right-0">
@@ -672,21 +691,28 @@ export default function RoomPage() {
           />
         </main>
         
-        <footer className="h-16 min-h-24 flex items-center justify-center border-t px-4 shrink-0 z-10 bg-background fixed bottom-0 left-0 right-0">
-          <ControlBar
-            isMuted={isMuted}
-            isCameraOff={isCameraOff}
-            isScreenSharing={isSharingScreen}
-            onToggleAudio={toggleAudio}
-            onToggleVideo={toggleVideo}
-            onToggleScreenShare={toggleScreenShare}
-            onLeave={() => router.push('/')}
-            onToggleChat={() => setIsChatOpen(!isChatOpen)}
-            onInvite={handleInvite}
-            onOpenSettings={() => setIsSettingsOpen(true)}
-            t={t}
-          />
+        {/* Desktop Footer */}
+        <footer className="h-24 hidden md:flex items-center justify-center border-t px-4 shrink-0 z-10 bg-background fixed bottom-0 left-0 right-0">
+          <ControlBar {...commonControlBarProps} isMobileView={false} />
         </footer>
+
+        {/* Mobile FAB */}
+        <div className="md:hidden fixed bottom-4 right-4 z-20">
+            {isMobileControlsOpen && (
+                 <div className="absolute bottom-16 right-0 flex flex-col items-end gap-2 mb-2">
+                    <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-4 border shadow-lg">
+                        <ControlBar {...commonControlBarProps} isMobileView={true} />
+                    </div>
+                 </div>
+            )}
+             <Button 
+                size="icon" 
+                className="rounded-full h-14 w-14 shadow-lg bg-primary hover:bg-primary/90"
+                onClick={() => setIsMobileControlsOpen(!isMobileControlsOpen)}
+            >
+                {isMobileControlsOpen ? <X className="h-6 w-6" /> : <ChevronUp className="h-6 w-6" />}
+            </Button>
+        </div>
       </div>
   )
 }
