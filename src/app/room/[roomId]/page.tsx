@@ -641,7 +641,7 @@ export default function RoomPage() {
   const commonControlBarProps = {
     isMuted,
     isCameraOff,
-    isScreenSharing,
+    isScreenSharing: isSharingScreen,
     onToggleAudio: toggleAudio,
     onToggleVideo: toggleVideo,
     onToggleScreenShare: toggleScreenShare,
