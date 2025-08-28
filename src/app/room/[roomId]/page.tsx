@@ -5,13 +5,14 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Copy,
-  Video,
   VideoOff,
   Users,
   Loader,
   Expand,
   Minimize,
   Maximize,
+  Volume2,
+  VolumeX
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -66,7 +67,9 @@ export default function RoomPage() {
   });
 
   const [maximizedParticipantId, setMaximizedParticipantId] = useState<string | null>(null);
+  const [mutedParticipants, setMutedParticipants] = useState<Record<string, boolean>>({});
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
+  const selfId = socketRef.current?.id;
 
   const createPeerConnection = useCallback((peerId: string): RTCPeerConnection => {
     console.log(`Creating peer connection to ${peerId}`);
@@ -89,6 +92,7 @@ export default function RoomPage() {
     pc.ontrack = (event) => {
       console.log(`Received remote track from ${peerId}`);
       setRemoteStreams(prev => ({ ...prev, [peerId]: event.streams[0] }));
+      setMutedParticipants(prev => ({...prev, [peerId]: true})); // Mute remote streams by default
     };
     
     localStream?.getTracks().forEach(track => {
@@ -252,6 +256,11 @@ export default function RoomPage() {
                       delete newStreams[id];
                       return newStreams;
                   });
+                   setMutedParticipants(prev => {
+                      const newMuted = { ...prev };
+                      delete newMuted[id];
+                      return newMuted;
+                  });
               }
           });
 
@@ -366,40 +375,53 @@ export default function RoomPage() {
   }
 
   const replaceStreamInPeers = async (newStream: MediaStream | null) => {
-    const renegotiateNeededPcs: RTCPeerConnection[] = [];
-
+    const renegotiateNeededPcs: {pc: RTCPeerConnection, peerId: string}[] = [];
+  
     for (const peerId in peerConnections.current) {
-        const pc = peerConnections.current[peerId];
-        if (!pc || pc.signalingState === 'closed') continue;
-
-        const senders = pc.getSenders();
-        const videoTrack = newStream?.getVideoTracks()[0] || null;
-        const videoSender = senders.find(s => s.track?.kind === 'video');
-
-        if (videoSender) {
-            await videoSender.replaceTrack(videoTrack);
-        } else if (videoTrack && newStream) {
-            pc.addTrack(videoTrack, newStream);
-        }
-
-        const audioTrack = newStream?.getAudioTracks()[0] || null;
-        const audioSender = senders.find(s => s.track?.kind === 'audio');
-        if (audioSender) {
-          await audioSender.replaceTrack(audioTrack);
-        } else if (audioTrack && newStream) {
-          pc.addTrack(audioTrack, newStream);
-        }
-
-        renegotiateNeededPcs.push(pc);
+      const pc = peerConnections.current[peerId];
+      if (!pc || pc.signalingState === 'closed') continue;
+  
+      const senders = pc.getSenders();
+      const videoTrack = newStream?.getVideoTracks()[0] || null;
+      const videoSender = senders.find(s => s.track?.kind === 'video');
+  
+      if (videoSender) {
+        await videoSender.replaceTrack(videoTrack);
+      } else if (videoTrack && newStream) {
+        pc.addTrack(videoTrack, newStream);
+      }
+  
+      const audioTrack = newStream?.getAudioTracks()[0] || null;
+      const audioSender = senders.find(s => s.track?.kind === 'audio');
+      if (audioSender) {
+        await audioSender.replaceTrack(audioTrack);
+      } else if (audioTrack && newStream) {
+        pc.addTrack(audioTrack, newStream);
+      }
+  
+      renegotiateNeededPcs.push({pc, peerId});
     }
+  
     // After replacing tracks, renegotiate if necessary
-    for (const pc of renegotiateNeededPcs) {
-        const peerId = Object.keys(peerConnections.current).find(id => peerConnections.current[id] === pc);
-        if (peerId) {
-            const offer = await pc.createOffer();
+    for (const {pc, peerId} of renegotiateNeededPcs) {
+      if (socketRef.current) {
+        const localParticipant = participants.find(part => part.id === socketRef.current?.id);
+        const remoteParticipant = participants.find(part => part.id === peerId);
+        
+        // Let the user who joined earlier create the offer.
+        if (localParticipant && remoteParticipant && new Date(localParticipant.joinTime) < new Date(remoteParticipant.joinTime)) {
+          console.log(`Local participant is initiator, creating offer for ${peerId}`);
+          try {
+            const offer = await pc.createOffer({ iceRestart: true }); // iceRestart might be useful
             await pc.setLocalDescription(offer);
             socketRef.current?.emit('webrtc-offer', { to: peerId, offer: pc.localDescription });
+          } catch(e) {
+            console.error("Error creating offer during renegotiation:", e);
+          }
+        } else {
+            console.log(`Remote participant ${peerId} is initiator, will wait for offer during renegotiation.`);
         }
+      }
     }
   };
   
@@ -415,15 +437,18 @@ export default function RoomPage() {
             });
 
             screenStream.getVideoTracks()[0].onended = () => {
-                if (socketRef.current && isSharingScreen) { 
+                 // Check state *inside* the onended handler, as it might have changed
+                if (socketRef.current && isSharingScreen) {
                     toggleScreenShare(); // Will now handle state correctly
                 }
             };
             
-            // Keep user media stream audio track if exists
-            const audioTrack = userMediaStream?.getAudioTracks()[0];
-            if (audioTrack) {
-                screenStream.addTrack(audioTrack.clone());
+            // Keep user media stream audio track if it exists and audio is not muted
+            if (userMediaStream && !isMuted) {
+                const audioTrack = userMediaStream.getAudioTracks()[0];
+                if (audioTrack) {
+                    screenStream.addTrack(audioTrack.clone());
+                }
             }
 
             setLocalStream(screenStream);
@@ -435,9 +460,6 @@ export default function RoomPage() {
         } catch (error) {
             console.error('Error sharing screen:', error);
             toast({ variant: 'destructive', title: t.screen_share_failed_title });
-            const cameraStream = await setupStream(mediaConstraints);
-            setLocalStream(cameraStream);
-            setIsSharingScreen(false);
         }
     } else {
         socket.emit('stop-sharing', { roomId, id: socket.id });
@@ -508,8 +530,6 @@ export default function RoomPage() {
         }
     }
   };
-  
-  const selfId = socketRef.current?.id;
 
   const handleFullscreen = (participantId: string) => {
     const videoElement = videoRefs.current[participantId];
@@ -524,6 +544,12 @@ export default function RoomPage() {
     } else {
       setMaximizedParticipantId(participantId); // Maximize
     }
+  };
+   const toggleRemoteMute = (participantId: string) => {
+    setMutedParticipants(prev => ({
+        ...prev,
+        [participantId]: !prev[participantId]
+    }));
   };
   
   if (isLoading) {
@@ -550,18 +576,22 @@ export default function RoomPage() {
     
     const stream = getStreamForParticipant(participant.id);
     const isLocal = participant.id === selfId;
-    const isVideoOff = isLocal ? (isSharingScreen ? false : isCameraOff) : participant.isCameraOff;
+    const isVideoOff = isLocal ? (isSharingScreen ? false : isCameraOff) : (
+      !remoteStreams[participant.id] || !remoteStreams[participant.id].getVideoTracks().find(t => t.enabled)
+    );
     const isMaximized = maximizedParticipantId === participant.id;
+    const isParticipantMuted = isLocal || mutedParticipants[participant.id];
 
     useEffect(() => {
         const videoElement = videoRefs.current[participant.id];
         if (videoElement && stream) {
-            videoElement.srcObject = stream;
+            if(videoElement.srcObject !== stream) {
+               videoElement.srcObject = stream;
+            }
         } else if (videoElement) {
             videoElement.srcObject = null;
         }
     }, [stream, participant.id]);
-
 
     return (
         <div className="relative group aspect-video rounded-lg overflow-hidden bg-card border shadow-md flex items-center justify-center">
@@ -571,14 +601,19 @@ export default function RoomPage() {
                     className="w-full h-full object-cover" 
                     autoPlay 
                     playsInline 
-                    muted={isLocal} 
+                    muted={isParticipantMuted} 
                 />
             ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center bg-muted text-muted-foreground">
                     <VideoOff className="h-8 w-8 md:h-12 md:w-12" />
                 </div>
             )}
-             <div className="absolute top-2 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+             <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {!isLocal && stream && (
+                     <Button variant="ghost" size="icon" className="h-8 w-8 bg-black/40 hover:bg-black/60 text-white hover:text-white" onClick={() => toggleRemoteMute(participant.id)}>
+                        {isParticipantMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                    </Button>
+                )}
                 <Button variant="ghost" size="icon" className="h-8 w-8 bg-black/40 hover:bg-black/60 text-white hover:text-white" onClick={() => handleMaximize(participant.id)}>
                     {isMaximized ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
                 </Button>
