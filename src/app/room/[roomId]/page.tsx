@@ -9,6 +9,9 @@ import {
   VideoOff,
   Users,
   Loader,
+  Expand,
+  Minimize,
+  Maximize,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -53,6 +56,7 @@ export default function RoomPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [userMediaStream, setUserMediaStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const peerConnections = useRef<Record<string, RTCPeerConnection>>({});
 
@@ -61,9 +65,11 @@ export default function RoomPage() {
     audio: true,
   });
 
+  const [maximizedParticipantId, setMaximizedParticipantId] = useState<string | null>(null);
+  const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
+
   const createPeerConnection = useCallback((peerId: string): RTCPeerConnection => {
     console.log(`Creating peer connection to ${peerId}`);
-    // Close existing connection if any
     if (peerConnections.current[peerId]) {
       peerConnections.current[peerId].close();
     }
@@ -85,7 +91,6 @@ export default function RoomPage() {
       setRemoteStreams(prev => ({ ...prev, [peerId]: event.streams[0] }));
     };
     
-    // Add tracks if local stream already exists
     localStream?.getTracks().forEach(track => {
       console.log(`Adding local track to PC for ${peerId}`);
       pc.addTrack(track, localStream);
@@ -140,6 +145,7 @@ export default function RoomPage() {
       socket.off('disconnect', handleDisconnect);
       socket.disconnect();
       localStream?.getTracks().forEach(track => track.stop());
+      userMediaStream?.getTracks().forEach(track => track.stop());
       Object.values(peerConnections.current).forEach(pc => pc.close());
     }
   }, [roomId, userName, urlName]);
@@ -211,17 +217,15 @@ export default function RoomPage() {
           console.log('Self ID:', selfId);
           console.log('Other Participants:', otherParticipants);
 
-          // 修改参与者处理逻辑
           otherParticipants.forEach(p => {
             if (!peerConnections.current[p.id]) {
               console.log(`New participant ${p.name} (${p.id}) joined. Creating peer connection.`);
               const pc = createPeerConnection(p.id);
               
-              // 获取当前用户的加入时间（从participants中找到自己）
               const localParticipant = updatedParticipants.find(part => part.id === socketRef.current?.id);
               
-              if (localParticipant && localParticipant.joinTime < p.joinTime) {
-                console.log(`Local participant joined earlier (${localParticipant.joinTime} < ${p.joinTime}), initiating offer`);
+              if (localParticipant && new Date(localParticipant.joinTime) < new Date(p.joinTime)) {
+                console.log(`Local participant joined earlier, initiating offer to ${p.id}`);
                 pc.createOffer()
                   .then(offer => pc.setLocalDescription(offer))
                   .then(() => {
@@ -231,7 +235,7 @@ export default function RoomPage() {
                   })
                   .catch(e => console.error("Error creating offer:", e));
               } else if (localParticipant) {
-                console.log(`Remote participant joined earlier (${p.joinTime} < ${localParticipant.joinTime}), waiting for offer`);
+                console.log(`Remote participant ${p.id} joined earlier, waiting for offer`);
               }
             }
           });
@@ -288,12 +292,12 @@ export default function RoomPage() {
 
   const setupStream = async (constraints: MediaStreamConstraints): Promise<MediaStream | null> => {
     try {
-      // stop previous stream
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
       }
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       setLocalStream(stream);
+      setUserMediaStream(stream); // Keep a copy of user media stream
       return stream;
     } catch (error) {
       console.error("Error accessing media devices.", error);
@@ -305,29 +309,11 @@ export default function RoomPage() {
       return null;
     }
   };
-
-  // useEffect(() => {
-  //   // Initial stream setup
-  //   if(userName && !localStream) {
-  //       setupStream(mediaConstraints).then(stream => {
-  //           if (stream) {
-  //               const audioTrack = stream.getAudioTracks()[0];
-  //               if (audioTrack) {
-  //                 audioTrack.enabled = !isMuted;
-  //               }
-  //               const videoTrack = stream.getVideoTracks()[0];
-  //               if (videoTrack) {
-  //                 videoTrack.enabled = !isCameraOff;
-  //               }
-  //           }
-  //       });
-  //   }
-  // }, [userName]);
   
   const toggleAudio = async () => {
     let stream = localStream;
     if (!stream) {
-      stream = await setupStream({ ...mediaConstraints, audio: true });
+      stream = await setupStream({ ...mediaConstraints, audio: true, video: mediaConstraints.video });
       if (stream) {
          setIsMuted(false);
          return;
@@ -345,7 +331,7 @@ export default function RoomPage() {
   const toggleVideo = async () => {
     let stream = localStream;
     if (!stream) {
-      stream = await setupStream({ ...mediaConstraints, video: true });
+      stream = await setupStream({ ...mediaConstraints, video: true, audio: mediaConstraints.audio });
        if (stream) {
          setIsCameraOff(false);
          return;
@@ -380,35 +366,40 @@ export default function RoomPage() {
   }
 
   const replaceStreamInPeers = async (newStream: MediaStream | null) => {
+    const renegotiateNeededPcs: RTCPeerConnection[] = [];
+
     for (const peerId in peerConnections.current) {
         const pc = peerConnections.current[peerId];
-        if (!pc) continue;
+        if (!pc || pc.signalingState === 'closed') continue;
 
         const senders = pc.getSenders();
-        
-        // Handle video track
         const videoTrack = newStream?.getVideoTracks()[0] || null;
         const videoSender = senders.find(s => s.track?.kind === 'video');
+
         if (videoSender) {
             await videoSender.replaceTrack(videoTrack);
         } else if (videoTrack && newStream) {
             pc.addTrack(videoTrack, newStream);
         }
 
-        // Handle audio track
         const audioTrack = newStream?.getAudioTracks()[0] || null;
         const audioSender = senders.find(s => s.track?.kind === 'audio');
         if (audioSender) {
-            await audioSender.replaceTrack(audioTrack);
+          await audioSender.replaceTrack(audioTrack);
         } else if (audioTrack && newStream) {
-            pc.addTrack(audioTrack, newStream);
+          pc.addTrack(audioTrack, newStream);
         }
 
-        // After replacing tracks, renegotiate if necessary
-        // This often involves creating a new offer
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        socketRef.current?.emit('webrtc-offer', { to: peerId, offer: pc.localDescription });
+        renegotiateNeededPcs.push(pc);
+    }
+    // After replacing tracks, renegotiate if necessary
+    for (const pc of renegotiateNeededPcs) {
+        const peerId = Object.keys(peerConnections.current).find(id => peerConnections.current[id] === pc);
+        if (peerId) {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socketRef.current?.emit('webrtc-offer', { to: peerId, offer: pc.localDescription });
+        }
     }
   };
   
@@ -423,26 +414,27 @@ export default function RoomPage() {
                 audio: true 
             });
 
-            // Stop previous stream before starting a new one
-            localStream?.getTracks().forEach(track => track.stop());
-            
             screenStream.getVideoTracks()[0].onended = () => {
-                // This event is fired when user stops sharing via browser's native UI
-                if (isSharingScreen) { // Check if we are still in sharing mode
-                    toggleScreenShare();
+                if (socketRef.current && isSharingScreen) { 
+                    toggleScreenShare(); // Will now handle state correctly
                 }
             };
             
+            // Keep user media stream audio track if exists
+            const audioTrack = userMediaStream?.getAudioTracks()[0];
+            if (audioTrack) {
+                screenStream.addTrack(audioTrack.clone());
+            }
+
             setLocalStream(screenStream);
             setIsSharingScreen(true);
-            setIsCameraOff(true); // Visually indicate camera is off, though it's the screen
+            setIsCameraOff(true); 
             socket.emit('start-sharing', { roomId, id: socket.id });
             await replaceStreamInPeers(screenStream);
 
         } catch (error) {
             console.error('Error sharing screen:', error);
             toast({ variant: 'destructive', title: t.screen_share_failed_title });
-            // If screen share fails, restore camera stream
             const cameraStream = await setupStream(mediaConstraints);
             setLocalStream(cameraStream);
             setIsSharingScreen(false);
@@ -450,22 +442,22 @@ export default function RoomPage() {
     } else {
         socket.emit('stop-sharing', { roomId, id: socket.id });
         
-        // Stop the screen sharing tracks
         localStream?.getTracks().forEach(track => track.stop());
         
         setIsSharingScreen(false);
-        const newCameraStream = await setupStream(mediaConstraints);
-        setLocalStream(newCameraStream);
+        
+        // Restore the original user media stream if it exists
+        const streamToRestore = userMediaStream || null;
+        setLocalStream(streamToRestore);
 
-        // Re-enable camera/mic based on previous state
-        if (newCameraStream) {
-            const videoTrack = newCameraStream.getVideoTracks()[0];
+        if (streamToRestore) {
+            const videoTrack = streamToRestore.getVideoTracks()[0];
             if (videoTrack) videoTrack.enabled = !isCameraOff;
-            const audioTrack = newCameraStream.getAudioTracks()[0];
+            const audioTrack = streamToRestore.getAudioTracks()[0];
             if (audioTrack) audioTrack.enabled = !isMuted;
         }
 
-        await replaceStreamInPeers(newCameraStream);
+        await replaceStreamInPeers(streamToRestore);
     }
   }
 
@@ -516,8 +508,23 @@ export default function RoomPage() {
         }
     }
   };
-
+  
   const selfId = socketRef.current?.id;
+
+  const handleFullscreen = (participantId: string) => {
+    const videoElement = videoRefs.current[participantId];
+    if (videoElement && videoElement.requestFullscreen) {
+      videoElement.requestFullscreen();
+    }
+  };
+
+  const handleMaximize = (participantId: string) => {
+    if (maximizedParticipantId === participantId) {
+      setMaximizedParticipantId(null); // Restore
+    } else {
+      setMaximizedParticipantId(participantId); // Maximize
+    }
+  };
   
   if (isLoading) {
     return (
@@ -539,32 +546,46 @@ export default function RoomPage() {
   }
 
   const ParticipantVideo = ({ participant }: { participant: Participant | undefined }) => {
-    const videoRef = useRef<HTMLVideoElement>(null);
     if (!participant) return null;
     
     const stream = getStreamForParticipant(participant.id);
     const isLocal = participant.id === selfId;
     const isVideoOff = isLocal ? (isSharingScreen ? false : isCameraOff) : participant.isCameraOff;
-    const isAudioMuted = isLocal ? isMuted : participant.isMuted;
-    
+    const isMaximized = maximizedParticipantId === participant.id;
+
     useEffect(() => {
-        if (videoRef.current && stream) {
-            videoRef.current.srcObject = stream;
-        } else if (videoRef.current) {
-            videoRef.current.srcObject = null;
+        const videoElement = videoRefs.current[participant.id];
+        if (videoElement && stream) {
+            videoElement.srcObject = stream;
+        } else if (videoElement) {
+            videoElement.srcObject = null;
         }
-    }, [stream]);
+    }, [stream, participant.id]);
 
 
     return (
-        <div className="relative aspect-video rounded-lg overflow-hidden bg-card border shadow-md flex items-center justify-center">
+        <div className="relative group aspect-video rounded-lg overflow-hidden bg-card border shadow-md flex items-center justify-center">
             {stream && !isVideoOff ? (
-                <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted={isLocal} />
+                <video 
+                    ref={el => (videoRefs.current[participant.id] = el)} 
+                    className="w-full h-full object-cover" 
+                    autoPlay 
+                    playsInline 
+                    muted={isLocal} 
+                />
             ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center bg-muted text-muted-foreground">
                     <VideoOff className="h-8 w-8 md:h-12 md:w-12" />
                 </div>
             )}
+             <div className="absolute top-2 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button variant="ghost" size="icon" className="h-8 w-8 bg-black/40 hover:bg-black/60 text-white hover:text-white" onClick={() => handleMaximize(participant.id)}>
+                    {isMaximized ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 bg-black/40 hover:bg-black/60 text-white hover:text-white" onClick={() => handleFullscreen(participant.id)}>
+                    <Expand className="h-4 w-4" />
+                </Button>
+            </div>
             <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-xs font-medium flex items-center gap-2">
                 <span>{participant.name} {isLocal && `(${t.you})`}</span>
                 {participant.isSharingScreen && <span className="text-xs">({t.screen_sharing})</span>}
@@ -573,6 +594,9 @@ export default function RoomPage() {
     );
   };
 
+  const visibleParticipants = maximizedParticipantId
+    ? participants.filter(p => p.id === maximizedParticipantId)
+    : participants;
 
   return (
       <div className="flex h-screen w-full flex-col bg-background text-foreground">
@@ -591,8 +615,8 @@ export default function RoomPage() {
         <main className="flex flex-1 overflow-hidden">
           <div className="flex-1 p-2 sm:p-4">
              {participants.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4 h-full w-full">
-                    {participants.map((p) => (
+                <div className={`grid gap-2 sm:gap-4 h-full w-full ${maximizedParticipantId ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4'}`}>
+                    {visibleParticipants.map((p) => (
                       <ParticipantVideo key={p.id} participant={p} />
                     ))}
                 </div>
@@ -639,5 +663,6 @@ export default function RoomPage() {
       </div>
   )
 }
+    
 
     
