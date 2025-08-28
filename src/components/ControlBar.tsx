@@ -52,7 +52,6 @@ export function ControlBar({
 }: ControlBarProps) {
   return (
     <TooltipProvider>
-      <footer className="flex h-auto min-h-24 items-center justify-center border-t bg-background/95 py-2 backdrop-blur-sm shrink-0 px-4">
         <div className="flex flex-wrap items-center justify-center gap-2 md:gap-4">
           <ControlButton tooltip={isMuted ? t.unmute : t.mute} onClick={onToggleAudio} variant={'outline'} className={cn("h-14 w-14 border-0 bg-card hover:bg-muted", isMuted ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground hover:text-destructive-foreground" : "")}>
             {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
@@ -91,7 +90,6 @@ export function ControlBar({
             <Settings className="h-6 w-6" />
           </ControlButton>
         </div>
-      </footer>
     </TooltipProvider>
   );
 }

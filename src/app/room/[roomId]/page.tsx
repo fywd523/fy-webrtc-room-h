@@ -635,8 +635,8 @@ export default function RoomPage() {
     : participants;
 
   return (
-      <div className="flex h-screen w-full flex-col bg-background text-foreground">
-        <header className="flex h-16 items-center justify-between border-b px-4 shrink-0">
+      <div className="flex flex-col h-screen w-full bg-background text-foreground">
+        <header className="h-16 flex items-center justify-between border-b px-4 shrink-0 z-10 bg-background fixed top-0 left-0 right-0">
           <ConnectWaveLogo />
           <div className="hidden md:flex items-center gap-2 rounded-md bg-muted px-3 py-1.5">
             <Users className="h-5 w-5 text-muted-foreground" />
@@ -648,25 +648,14 @@ export default function RoomPage() {
           <LanguageSwitcher />
         </header>
 
-        <main className="flex flex-1 overflow-hidden">
+        <main className="flex-1 overflow-y-auto mt-16 mb-24">
           <div className="flex-1 p-2 sm:p-4">
-             {participants.length > 0 ? (
-                <div className={`grid gap-2 sm:gap-4 h-full w-full ${maximizedParticipantId ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4'}`}>
-                    {visibleParticipants.map((p) => (
-                      <ParticipantVideo key={p.id} participant={p} />
-                    ))}
-                </div>
-             ) : (
-                <div className="relative flex-1 w-full h-full rounded-lg overflow-hidden bg-card border shadow-md flex items-center justify-center">
-                    <div className="text-center p-4">
-                        <Users className="h-12 w-12 md:h-16 md:w-16 mx-auto text-muted-foreground" />
-                        <p className="mt-2 text-muted-foreground">{t.welcome_to_room}</p>
-                        <p className="text-sm text-muted-foreground">Invite others to join!</p>
-                    </div>
-                </div>
-             )}
+            <div className={`grid gap-2 sm:gap-4 w-full ${maximizedParticipantId ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4'}`}>
+              {(visibleParticipants||[]).map((p) => (
+                <ParticipantVideo key={p.id} participant={p} />
+              ))}
+            </div>
           </div>
-          
           <ChatPanel 
             isOpen={isChatOpen}
             onOpenChange={setIsChatOpen}
@@ -675,27 +664,29 @@ export default function RoomPage() {
             t={t}
             userName={userName}
           />
-
+            <SettingsDialog 
+              isOpen={isSettingsOpen} 
+              onOpenChange={setIsSettingsOpen} 
+              localStream={localStream}
+              onMediaDeviceChange={handleMediaDeviceChange}
+          />
         </main>
-        <SettingsDialog 
-            isOpen={isSettingsOpen} 
-            onOpenChange={setIsSettingsOpen} 
-            localStream={localStream}
-            onMediaDeviceChange={handleMediaDeviceChange}
-        />
-        <ControlBar
-          isMuted={isMuted}
-          isCameraOff={isCameraOff}
-          isScreenSharing={isSharingScreen}
-          onToggleAudio={toggleAudio}
-          onToggleVideo={toggleVideo}
-          onToggleScreenShare={toggleScreenShare}
-          onLeave={() => router.push('/')}
-          onToggleChat={() => setIsChatOpen(!isChatOpen)}
-          onInvite={handleInvite}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-          t={t}
-        />
+        
+        <footer className="h-16 min-h-24 flex items-center justify-center border-t px-4 shrink-0 z-10 bg-background fixed bottom-0 left-0 right-0">
+          <ControlBar
+            isMuted={isMuted}
+            isCameraOff={isCameraOff}
+            isScreenSharing={isSharingScreen}
+            onToggleAudio={toggleAudio}
+            onToggleVideo={toggleVideo}
+            onToggleScreenShare={toggleScreenShare}
+            onLeave={() => router.push('/')}
+            onToggleChat={() => setIsChatOpen(!isChatOpen)}
+            onInvite={handleInvite}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            t={t}
+          />
+        </footer>
       </div>
   )
 }
