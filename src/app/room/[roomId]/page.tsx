@@ -364,6 +364,7 @@ export default function RoomPage() {
     if (socketRef.current?.id) {
       socketRef.current.emit('join-room', { roomId, name: name, id: socketRef.current.id });
     }
+    window.location.href = newUrl;
   }
 
   const copyRoomId = () => {
@@ -597,7 +598,7 @@ export default function RoomPage() {
         <div className="relative group aspect-video rounded-lg overflow-hidden bg-card border shadow-md flex items-center justify-center">
             {stream && !isVideoOff ? (
                 <video 
-                    ref={el => (videoRefs.current[participant.id] = el)} 
+                    ref={(el) => { videoRefs.current[participant.id] = el; }}
                     className="w-full h-full object-cover" 
                     autoPlay 
                     playsInline 
