@@ -122,18 +122,22 @@ export default function RoomPage() {
        }
     }
 
-    const handleStartSharing = ({ roomId, id }: { roomId: string, id: string }) => {
+    const handleStartSharing = async ({ roomId, id }: { roomId: string, id: string }) => {
       console.log(`Start sharing screen for ${roomId} by ${id}`)
       if (id === socket.id) {
         return;
       }
+      await setTimeout(()=>{}, 1000);
+      window.location.href=`/room/${roomId}?name=${userName}`;
     }
     
-    const handleStopSharing = ({ roomId, id }: { roomId: string, id: string }) => {
+    const handleStopSharing = async ({ roomId, id }: { roomId: string, id: string }) => {
       console.log(`Stop sharing screen for ${roomId} by ${id}`)
       if (id === socket.id) {
         return;
       }
+      await setTimeout(()=>{}, 1000);
+      window.location.href=`/room/${roomId}?name=${userName}`;
     }
     
     const handleUpdateMessages = (history: Omit<Message, 'isLocal'>[]) => {
