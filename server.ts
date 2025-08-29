@@ -94,6 +94,7 @@ app.prepare().then(() => {
                 participant.isSharingScreen = true;
             }
             io.to(roomId).emit('update-participants', rooms[roomId].map(p => ({...p, isMuted: false, isCameraOff: false})))
+            io.to(roomId).emit('start-sharing', { roomId, id })
         }
     })
 
@@ -104,6 +105,7 @@ app.prepare().then(() => {
                 participant.isSharingScreen = false;
             }
             io.to(roomId).emit('update-participants', rooms[roomId].map(p => ({...p, isMuted: false, isCameraOff: false})))
+            io.to(roomId).emit('stop-sharing', { roomId, id })
         }
     })
 

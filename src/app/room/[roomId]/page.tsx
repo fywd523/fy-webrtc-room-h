@@ -122,6 +122,20 @@ export default function RoomPage() {
          socket.emit('join-room', { roomId, name: userName, id: socket.id });
        }
     }
+
+    const handleStartSharing = ({ roomId, id }: { roomId: string, id: string }) => {
+      console.log(`Start sharing screen for ${roomId} by ${id}`)
+      if (id === socket.id) {
+        return;
+      }
+    }
+    
+    const handleStopSharing = ({ roomId, id }: { roomId: string, id: string }) => {
+      console.log(`Stop sharing screen for ${roomId} by ${id}`)
+      if (id === socket.id) {
+        return;
+      }
+    }
     
     const handleUpdateMessages = (history: Omit<Message, 'isLocal'>[]) => {
         setMessages(history.map(msg => ({...msg, isLocal: msg.senderId === socket.id})));
@@ -141,6 +155,8 @@ export default function RoomPage() {
     };
 
     socket.on('connect', handleConnect);
+    socket.on('start-sharing', handleStartSharing)
+    socket.on('stop-sharing', handleStopSharing)
     socket.on('receive-message', handleReceiveMessage)
     socket.on('update-messages', handleUpdateMessages);
     socket.on('disconnect', handleDisconnect);
@@ -148,6 +164,8 @@ export default function RoomPage() {
     return () => {
       console.log('Cleaning up socket connection effect');
       socket.off('connect', handleConnect);
+      socket.off('start-sharing', handleStartSharing)
+      socket.off('stop-sharing', handleStopSharing)
       socket.off('receive-message', handleReceiveMessage);
       socket.off('update-messages', handleUpdateMessages);
       socket.off('disconnect', handleDisconnect);
@@ -352,11 +370,13 @@ export default function RoomPage() {
        return;
     }
 
-    const videoTrack = stream.getVideoTracks()[0];
-    if (videoTrack) {
-      videoTrack.enabled = !videoTrack.enabled;
-      setIsCameraOff(!videoTrack.enabled);
-    }
+    // const videoTrack = stream.getVideoTracks()[0];
+    // if (videoTrack) {
+    //   videoTrack.enabled = !videoTrack.enabled;
+    //   setIsCameraOff(!videoTrack.enabled);
+    // }
+    setIsCameraOff(true);
+    userMediaStream?.getTracks().forEach(track => track.stop());
   };
 
 
