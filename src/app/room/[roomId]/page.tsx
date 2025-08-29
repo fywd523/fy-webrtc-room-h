@@ -28,7 +28,6 @@ import { ChatPanel } from '@/components/ChatPanel'
 import { NamePromptDialog } from '@/components/NamePromptDialog'
 import { ControlBar } from '@/components/ControlBar'
 import { SettingsDialog } from '@/components/SettingsDialog'
-import { cn } from '@/lib/utils'
 
 const ICE_SERVERS = {
   iceServers: [
