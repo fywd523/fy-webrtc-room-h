@@ -321,6 +321,23 @@ export default function RoomPage() {
 
   }, [localStream]);
 
+  // Effect to handle beforeunload event when sharing screen
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (isSharingScreen) {
+        event.preventDefault();
+        event.returnValue = t.screen_sharing_reload_warning;
+        return t.screen_sharing_reload_warning;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isSharingScreen, t]);
+
   const setupStream = async (constraints: MediaStreamConstraints): Promise<MediaStream | null> => {
     try {
       if (localStream) {

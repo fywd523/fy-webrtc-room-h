@@ -67,6 +67,7 @@ See you there!
     media_access_failed_title: 'Media access failed',
     media_access_failed_description: 'Could not access camera and microphone.',
     screen_share_failed_title: 'Could not share screen',
+    screen_sharing_reload_warning: 'You are currently sharing your screen. Reloading will stop the screen share. Are you sure you want to continue?',
   },
   zh: {
     appName: 'ConnectWave',
@@ -135,6 +136,7 @@ See you there!
     media_access_failed_title: '媒体访问失败',
     media_access_failed_description: '无法访问摄像头和麦克风。',
     screen_share_failed_title: '无法共享屏幕',
+    screen_sharing_reload_warning: '您正在共享屏幕。刷新页面将停止屏幕共享。您确定要继续吗？',
   },
   ja: {
     appName: 'ConnectWave',
@@ -203,6 +205,7 @@ See you there!
     media_access_failed_title: 'メディアアクセスに失敗しました',
     media_access_failed_description: 'カメラとマイクにアクセスできませんでした。',
     screen_share_failed_title: '画面共有に失敗しました',
+    screen_sharing_reload_warning: '現在画面を共有しています。ページをリロードすると画面共有が停止します。続行しますか？',
   },
   ko: {
     appName: 'ConnectWave',
@@ -271,6 +274,7 @@ See you there!
     media_access_failed_title: '미디어 액세스 실패',
     media_access_failed_description: '카메라와 마이크에 액세스할 수 없습니다.',
     screen_share_failed_title: '화면을 공유할 수 없습니다',
+    screen_sharing_reload_warning: '현재 화면을 공유하고 있습니다. 페이지를 새로고침하면 화면 공유가 중지됩니다. 계속하시겠습니까?',
   },
   'zh-TW': {
     appName: 'ConnectWave',
@@ -339,6 +343,7 @@ See you there!
     media_access_failed_title: '媒體存取失敗',
     media_access_failed_description: '無法存取攝影機和麥克風。',
     screen_share_failed_title: '無法分享螢幕',
+    screen_sharing_reload_warning: '您正在分享螢幕。重新載入頁面將停止螢幕分享。您確定要繼續嗎？',
   },
 }
 
